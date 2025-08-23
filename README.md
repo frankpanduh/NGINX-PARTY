@@ -1,27 +1,39 @@
-# NGINX Media+QUIC Build
+# NGINX-PARTY 🚀🎉
 
-**Purpose:**  
-Automated build of **NGINX** with media-rich features: QUIC / HTTP/3, Brotli, HTTP/2, RTMP streaming, AVIF/WebP support, and strong security defaults.
+**Build Status:** ![GitHub Workflow Status](https://github.com/<owner>/NGINX-PARTY/actions/workflows/ci.yml/badge.svg)
 
-**Why this exists:**  
-Cloudflare handles QUIC at the edge, but no one provides an easy **community build** for media-rich NGINX on Ubuntu 24.04. This fills that gap hopefully...
+## Overview
 
----
+NGINX-PARTY is a **fun, media-rich NGINX build** with:
 
-## Features / Road Map
-
-- QUIC / HTTP/3
-- HTTP/2 fallback
-- Brotli + gzip compression
-- AVIF & WebP support
-- RTMP / HLS streaming
-- TLS 1.3
-- Security headers & rate limiting
-- Packaged as `.deb` for easy installation
-- Automated build with GitHub Actions
+- QUIC / HTTP3 ⚡
+- Brotli compression 🌟
+- AVIF/WebP support 🖼️
+- Docker images 🐳
+- Auto `.deb` packaging 📦
+- GitHub Release automation 🎉
+- Bug trap emojis 🐛💥 for failed builds
+- currently in testing. 
 
 ---
 
-## Usage
+## Quick Start
 
-Build cool stuff maybe? Ask later...
+### Secrets Required
+
+Set the following in your fork or repository settings:
+
+- `DOCKER_USERNAME` → Docker Hub username
+- `DOCKER_PASSWORD` → Docker Hub password or PAT
+- `GHCR_TOKEN` → GitHub PAT with `write:packages` (optional for private GHCR)
+- `GITHUB_TOKEN` → auto-provided
+
+---
+
+### Pull Docker Images
+
+```bash
+docker pull $DOCKER_USERNAME/nginx-party:latest
+docker pull ghcr.io/<your-org>/nginx-party:latest
+
+
