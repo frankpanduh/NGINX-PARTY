@@ -5,90 +5,170 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  # Toggle kitchen-sink extras
+  ENABLE_MODSEC: "false"    # set to "true" to compile ModSecurity v3 + connector
+  NGINX_VERSION: ""         # leave empty to use latest from github.com/nginx/nginx
+  OPENSSL_VERSION: "3.3.1"
+
 jobs:
   build-deb:
     runs-on: ubuntu-latest
-    steps:
 
-      # Step 1: Checkout repo
+    steps:
+      # 1) Checkout repo
       - name: Checkout repository 📥
         uses: actions/checkout@v3
 
-      # Step 2: Install build dependencies
+      # 2) Install build dependencies
       - name: Install dependencies 🔧
         run: |
           echo "⚡ Installing build dependencies..."
           sudo apt-get update
-          sudo apt-get install -y build-essential libpcre3 libpcre3-dev \
-            zlib1g zlib1g-dev libssl-dev wget git libgeoip-dev libmaxminddb0 \
-            ca-certificates curl unzip checkinstall
-          echo "✅ Dependencies installed!"
+          sudo apt-get install -y \
+            build-essential git curl wget ca-certificates unzip pkg-config checkinstall \
+            libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev libmaxminddb0 libmaxminddb-dev mmdb-bin \
+            libzstd-dev
 
-      # Step 3: Clone nginx-quiche (HTTPS-only)
-      - name: Clone Cloudflare nginx-quiche 🌐
-        run: |
-          echo "🐚 Cloning nginx-quiche via HTTPS..."
-          git clone --depth 1 https://github.com/cloudflare/nginx-quiche.git
-          echo "✅ nginx-quiche cloned successfully!"
-
-      # Step 4: Download OpenSSL
-      - name: Download OpenSSL 🛡
-        run: |
-          wget https://www.openssl.org/source/openssl-3.1.4.tar.gz
-          tar xzf openssl-3.1.4.tar.gz
-
-      # Step 5: Clone NGINX mainline
-      - name: Clone NGINX 🌐
-        run: |
-          git clone https://github.com/nginx/nginx.git
-          cd nginx
-          git checkout master
-          echo "✅ NGINX cloned successfully!"
-
-      # Step 6: Configure & Build NGINX
-      - name: Configure & Build NGINX ⚡
-        run: |
-          cd nginx
-          ./auto/configure \
-            --with-http_ssl_module \
-            --with-http_v3_module \
-            --with-openssl=../openssl-3.1.4 \
-            --add-module=../nginx-quiche \
-            --with-stream \
-            --with-http_stub_status_module \
-            --with-cc-opt='-O2 -g' \
-            --with-ld-opt='-Wl,-rpath,/usr/local/lib' || { echo "💥🐛 Configure failed!"; exit 1; }
-
-          echo "⚡ Starting make..."
-          if make -j$(nproc); then
-            echo "🎉 Build successful!"
-          else
-            echo "💥🐛 Build failed! Check logs carefully." >&2
-            exit 1
+          if [ "${ENABLE_MODSEC}" = "true" ]; then
+            echo "🔐 Installing ModSecurity build deps..."
+            sudo apt-get install -y \
+              autoconf automake libtool doxygen \
+              libpcre2-dev libxml2 libxml2-dev libyajl-dev libgeoip-dev liblmdb-dev \
+              libfuzzy-dev libcurl4-openssl-dev liblua5.3-dev
           fi
 
-      # Step 7: Package .deb
-      - name: Package .deb 📦
-        run: |
-          sudo checkinstall --pkgname=nginx-party --pkgversion=1.0 \
-            --backup=no --deldoc=yes --fstrans=no --default
+          echo "✅ Dependencies installed!"
 
-      # Step 8: Upload artifact
+      # 3) Download OpenSSL
+      - name: Download OpenSSL 🛡
+        run: |
+          set -e
+          curl -LO "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+          tar xzf "openssl-${OPENSSL_VERSION}.tar.gz"
+          echo "✅ OpenSSL ${OPENSSL_VERSION} ready"
+
+      # 4) Clone NGINX mainline
+      - name: Clone NGINX 🌐
+        run: |
+          set -e
+          git clone https://github.com/nginx/nginx.git
+          cd nginx
+          if [ -n "${NGINX_VERSION}" ]; then
+            echo "📌 Checking out NGINX version: ${NGINX_VERSION}"
+            git checkout "${NGINX_VERSION}"
+          else
+            echo "📌 Using latest NGINX (default branch)"
+          fi
+          echo "✅ NGINX repository ready"
+
+      # 5) Clone third-party modules
+      - name: Clone third-party modules 🧩
+        run: |
+          set -e
+          git clone --depth 1 https://github.com/google/ngx_brotli.git
+          (cd ngx_brotli && git submodule update --init)
+          git clone --depth 1 https://github.com/tokers/nginx-http-zstd.git
+          git clone --depth 1 https://github.com/leev/ngx_http_geoip2_module.git
+          git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git
+          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
+          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
+          echo "✅ Third-party modules ready"
+
+      # 6) Optional ModSecurity v3
+      - name: Build ModSecurity v3 (optional) 🛡️
+        if: env.ENABLE_MODSEC == 'true'
+        run: |
+          set -e
+          git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity.git
+          cd ModSecurity
+          git submodule update --init --recursive
+          ./build.sh
+          ./configure
+          make -j"$(nproc)"
+          sudo make install
+          sudo ldconfig
+          cd ..
+          git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity-nginx.git
+          echo "✅ ModSecurity v3 + connector ready"
+
+      # 7) Configure & build NGINX
+      - name: Configure & Build NGINX ⚡
+        run: |
+          set -e
+          cd nginx
+          CONFIG_ARGS="\
+            --with-compat \
+            --with-http_ssl_module \
+            --with-http_v2_module \
+            --with-http_v3_module \
+            --with-stream=dynamic \
+            --with-stream_ssl_module \
+            --with-stream_ssl_preread_module \
+            --with-http_realip_module \
+            --with-http_addition_module \
+            --with-http_sub_module \
+            --with-http_dav_module \
+            --with-http_flv_module \
+            --with-http_mp4_module \
+            --with-http_gunzip_module \
+            --with-http_gzip_static_module \
+            --with-http_auth_request_module \
+            --with-http_random_index_module \
+            --with-http_secure_link_module \
+            --with-http_slice_module \
+            --with-http_stub_status_module \
+            --with-pcre-jit \
+            --with-openssl=../openssl-${OPENSSL_VERSION} \
+            --add-module=../ngx_brotli \
+            --add-module=../nginx-http-zstd \
+            --add-module=../ngx_http_geoip2_module \
+            --add-module=../headers-more-nginx-module \
+            --add-module=../ngx_cache_purge \
+            --add-module=../ngx-fancyindex \
+          "
+          if [ "${ENABLE_MODSEC}" = "true" ]; then
+            CONFIG_ARGS="${CONFIG_ARGS} --add-module=../ModSecurity-nginx"
+          fi
+
+          echo "🔨 ./auto/configure ${CONFIG_ARGS}"
+          ./auto/configure ${CONFIG_ARGS} \
+            --with-cc-opt='-O2 -g' \
+            --with-ld-opt='-Wl,-rpath,/usr/local/lib'
+
+          echo "⚡ Building..."
+          make -j"$(nproc)"
+          echo "🎉 Build successful!"
+
+      # 8) Package into .deb
+      - name: Package .deb with checkinstall 📦
+        run: |
+          set -e
+          cd nginx
+          sudo checkinstall --pkgname=nginx-party \
+            --pkgversion=1.0 \
+            --backup=no --deldoc=yes --fstrans=no --default
+          echo "✅ .deb package created"
+
+      # 9) Upload artifact
       - name: Upload .deb artifact 🚀
         uses: actions/upload-artifact@v4
         with:
           name: nginx-party-deb
-          path: ./nginx-party*.deb
+          path: ./nginx/nginx-party*.deb
           retention-days: 7
 
-      # Step 9: Auto-build notes
+      # 10) Auto-build notes
       - name: Auto-build notes 📝
         run: |
           echo "🎉 NGINX-PARTY .deb build complete!"
-          echo "- Artifact attached: nginx-party*.deb 📦"
-          echo "- QUIC / HTTP3 enabled ⚡"
-          echo "- AVIF / WebP support for modern media 🖼"
-          echo "- PCI-compliant hardening for WordPress / POS 💳"
-          echo "- WAF rules included 🔐 (see extras/waf.rules)"
-          echo "- Contributors: update secrets if you fork 🔑"
+          echo "⚙️  Built with: HTTP/3, Brotli, Zstd, GeoIP2, Headers-More, Cache-Purge, FancyIndex"
+          if [ "${ENABLE_MODSEC}" = "true" ]; then
+            echo "🛡️  ModSecurity v3 enabled (connector compiled)"
+          else
+            echo "🛡️  ModSecurity is OFF (set ENABLE_MODSEC=true to compile)"
+          fi
+          echo "🧱 Consider adding mitchellkrogza/nginx-ultimate-bad-bot-blocker in runtime configs"
+          echo "🖼  AVIF/WebP served via mime + caching rules in extras/"
+          echo "🔐 Strong TLS with OpenSSL ${OPENSSL_VERSION}"
           echo "🐛 If something broke, check CI logs carefully!"

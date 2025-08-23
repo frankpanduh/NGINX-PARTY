@@ -1,6 +1,6 @@
 # NGINX-PARTY Extras 🐳⚡
 
-Welcome to the `extras/` folder! These files are optional helpers, config templates, and test scripts to get the **most out of NGINX-PARTY** with media-rich features, QUIC/HTTP3, Brotli, AVIF/WebP support, and even livestreaming.
+Welcome to the `extras/` folder! These files are optional helpers, config templates, and test scripts to get the **most out of NGINX-PARTY** with media-rich features, QUIC/HTTP3, Brotli/Zstd, AVIF/WebP, livestreaming, and optional WAF + bot-blocking.
 
 ---
 
@@ -8,9 +8,11 @@ Welcome to the `extras/` folder! These files are optional helpers, config templa
 
 | File | Description |
 |------|-------------|
-| `nginx.conf.template` | Example NGINX config optimized for QUIC/HTTP3 + Brotli + new media formats |
-| `waf.rules` | Starter Web Application Firewall (WAF) rules snippet |
-| `brotli-avif-webp-test.sh` | Quick shell script to test Brotli compression & AVIF/WebP image support |
+| `nginx.conf.template` | Example NGINX config optimized for QUIC/HTTP3 + Brotli/Zstd + AVIF/WebP + mobile + IPv6 |
+| `waf.rules` | Starter Web Application Firewall (ModSecurity/OWASP) snippet |
+| `modsec-exclusions/` | CMS exclusions for WordPress & Drupal to prevent breaking core functionality |
+| `badbot/` | Maintained bot-block rules (MitchellKrogza) |
+| `brotli-avif-webp-test.sh` | Quick shell script to test Brotli/Zstd compression & AVIF/WebP support |
 | `livestream.conf` | Sample config for HLS/RTMP livestream testing |
 | `README.md` | This file — guides contributors through testing and experimenting |
 
@@ -21,58 +23,82 @@ Welcome to the `extras/` folder! These files are optional helpers, config templa
 ### 1️⃣ Using `nginx.conf.template`
 
 1. Copy the template to your NGINX config directory:
-```bash
+
+~~~~bash
 cp extras/nginx.conf.template /etc/nginx/nginx.conf
-```
+~~~~
+
 2. Adjust paths for SSL certificates (`ssl_certificate`, `ssl_certificate_key`) if needed.  
-3. Test config:
-```bash
+3. Test configuration:
+
+~~~~bash
 nginx -t
-```
+~~~~
+
 4. Reload NGINX:
-```bash
+
+~~~~bash
 sudo systemctl reload nginx
-```
-✅ Now QUIC/HTTP3 + Brotli + AVIF/WebP headers should be active.
+~~~~
+
+✅ Now QUIC/HTTP3 + Brotli/Zstd + AVIF/WebP + mobile optimizations + IPv6 headers should be active.
 
 ---
 
 ### 2️⃣ Testing Compression & Media Formats
 
 Run the provided test script:
-```bash
+
+~~~~bash
 chmod +x extras/brotli-avif-webp-test.sh
 ./extras/brotli-avif-webp-test.sh
-```
+~~~~
 
-What it does:
+Checks:
 
-- Checks Brotli compression headers  
-- Checks if server serves AVIF & WebP images correctly  
-- Prints fun emojis for success or bug traps for issues 💥🐛  
+- Brotli & Zstd compression headers  
+- AVIF & WebP image delivery  
+- Fun emoji feedback for success or bugs 💥🐛  
 
 ---
 
-### 3️⃣ WAF Rules Snippet
+### 3️⃣ WAF & Security
 
-`extras/waf.rules` contains example rules to protect NGINX from common attacks:
+`extras/waf.rules` contains **starter ModSecurity v3 rules**:
 
-```nginx
+~~~~nginx
 # Block SQLi attempts
 SecRule REQUEST_URI "@rx select.*from" "id:1001,deny,log,msg:'SQL Injection Attempt'"
 # Block XSS
 SecRule REQUEST_URI "@rx <script" "id:1002,deny,log,msg:'XSS Attempt'"
-```
+~~~~
 
-> 📝 Note: Adjust IDs and rules to your environment. Use as a **starter template** only.
+- Use as a **starter template** only  
+- Adjust rules, IDs, and thresholds to your environment  
+- Optional: toggle ModSecurity in CI / build with `ENABLE_MODSEC=true`  
+
+#### CMS Exclusions
+
+- `modsec-exclusions/wordpress-before.conf` → prevents breaking WordPress core  
+- `modsec-exclusions/drupal-before.conf` → prevents breaking Drupal core  
+
+> ⚡ Recommended for safe default CMS deployments
 
 ---
 
-### 4️⃣ Livestream Example
+### 4️⃣ Bot-Blocking (Lite Default)
 
-`extras/livestream.conf` gives a starting point for HLS/RTMP testing:
+- Includes MitchellKrogza bad-bot rules in `badbot/`  
+- Safe default: blocks known scrapers and bad bots  
+- Can be overridden / extended by users  
 
-```nginx
+---
+
+### 5️⃣ Livestream Example
+
+`extras/livestream.conf` provides a starting point for HLS/RTMP testing:
+
+~~~~nginx
 rtmp {
     server {
         listen 1935;
@@ -84,33 +110,44 @@ rtmp {
         }
     }
 }
-```
+~~~~
 
-After setup, you can push streams to `rtmp://your-server/live/stream-key` and test playback.
-
----
-
-### 5️⃣ Contributing & Experimenting
-
-- Fork the repo and experiment with `extras/` safely.  
-- If adding new media formats, update `nginx.conf.template` & test scripts.  
-- Use emojis 💥🐛🎉⚡ in your scripts to highlight errors and successes — contributors love fun feedback!  
-- Test Docker builds with your modified configs in the `docker.yml` workflow.
+- Push streams to `rtmp://your-server/live/stream-key`  
+- Adjust `chunk_size` and bandwidth limits for your environment  
 
 ---
 
-### 6️⃣ Notes & Tips
+### 6️⃣ Optional Security & Performance Tools
 
-- Keep your `.deb` artifact & Docker builds in sync.  
-- Always test config with `nginx -t` before reloading.  
-- Use `extras/brotli-avif-webp-test.sh` as a quick validation for HTTP headers & image formats.  
-- Livestreaming configs are experimental — adjust `chunk_size` and bandwidth limits based on your server.  
-- Any bugs during CI will appear with fun **bug trap emojis 💥🐛** — check logs for details.
+- Toggle ModSecurity (`ENABLE_MODSEC=true`) in `.github/workflows/ci.yml`  
+- Add extra bad-bot rules in `extras/badbot/`  
+- Enable PCI/POS hardening if needed (advanced users)  
+- IPv6 + mobile optimizations enabled by default  
+- Cloudflare headers / real IP awareness baked in  
+
+---
+
+### 7️⃣ Contributing & Experimenting
+
+- Fork the repo and experiment with `extras/` safely  
+- Update `nginx.conf.template`, WAF rules, or bot lists as needed  
+- Test Docker builds with your configs (`docker.yml`)  
+- Use emojis 💥🐛🎉⚡ in scripts for fun feedback  
+
+---
+
+### 8️⃣ Notes & Tips
+
+- Keep `.deb` artifact & Docker builds in sync  
+- Always validate configs with `nginx -t` before reload  
+- Use `extras/brotli-avif-webp-test.sh` to verify HTTP headers & image formats  
+- Livestreaming configs are experimental — tune for your server  
+- CI builds emit **bug trap emojis 💥🐛** if something fails — check logs  
 
 ---
 
 ### 🎉 Have fun experimenting!
 
-NGINX-PARTY is meant to be **media-rich, blazing fast, and experimental**. The `extras/` folder helps you explore QUIC/HTTP3, Brotli, AVIF/WebP, and even livestreaming without touching your main workflow.
+NGINX-PARTY is designed to be **media-rich, secure by default, and blazing fast**. Explore QUIC/HTTP3, Brotli/Zstd, AVIF/WebP, livestreaming, and optional WAF + bot-blocking safely with the `extras/` folder.
 
 Fork, test, push Docker images, and enjoy the emojis! 🚀
