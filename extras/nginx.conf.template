@@ -1,4 +1,8 @@
+# NGINX-PARTY Config Template
+# Copy to /etc/nginx/nginx.conf or preferred location
+
 worker_processes auto;
+
 events { worker_connections 1024; }
 
 http {
@@ -8,12 +12,12 @@ http {
     sendfile        on;
     keepalive_timeout 65;
 
-    # Brotli compression
+    # Brotli Compression
     brotli on;
     brotli_comp_level 6;
     brotli_types text/plain text/css application/javascript application/json image/svg+xml;
 
-    # QUIC/HTTP3
+    # QUIC/HTTP3 Support
     listen 443 ssl http2;
     listen 443 quic reuseport;
 
@@ -23,4 +27,10 @@ http {
     add_header Alt-Svc 'h3-23=":443"';
     add_header X-Content-Type-Options nosniff;
     add_header X-Frame-Options SAMEORIGIN;
+
+    server {
+        listen 8080;
+        root /var/www/html/media;
+        index index.html;
+    }
 }

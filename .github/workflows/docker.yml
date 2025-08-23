@@ -1,68 +1,37 @@
-name: Docker Build & Push 🐳
+name: Build & Push Docker Images 🐳
 
 on:
-  workflow_dispatch:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  docker:
-    needs: build-deb
+  docker-build:
     runs-on: ubuntu-latest
     steps:
-      # Checkout
-      - name: Checkout repo 📥
+      - name: Checkout repository 📥
         uses: actions/checkout@v3
 
-      # Download artifact
-      - name: Download .deb artifact 📦
-        uses: actions/download-artifact@v4
-        with:
-          name: nginx-party-deb
-          path: ./docker
-
-      # Docker Buildx
-      - name: Set up Docker Buildx 🔧
-        uses: docker/setup-buildx-action@v3
-
-      # Docker Hub login
-      - name: Log in to Docker Hub 🐳
+      - name: Login to Docker Hub 🐳
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }} # <-- set in repo secrets
+          password: ${{ secrets.DOCKERHUB_TOKEN }}    # <-- set in repo secrets
 
-      # GHCR login
-      - name: Log in to GHCR 🌟
+      - name: Login to GHCR ⚡
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          password: ${{ secrets.GHCR_PAT }} # <-- set in repo secrets
 
-      # Build and tag Docker
-      - name: Build & tag Docker images ⚡
+      - name: Build Docker image 🔨
         run: |
-          echo "🔨 Building Docker images..."
-          if docker build -t ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest ./docker; then
-            echo "🎉 Docker build done!"
-          else
-            echo "💥🐛 Docker build failed! Check Dockerfile & logs." >&2
-            exit 1
-          fi
-          docker tag ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest \
-                     ghcr.io/${{ github.repository_owner }}/nginx-party:latest
+          docker build -t nginx-party:latest .
+          docker tag nginx-party:latest ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:latest
+          docker tag nginx-party:latest ghcr.io/${{ github.repository_owner }}/nginx-party:latest
 
-      # Push Docker images
       - name: Push Docker images 🚀
         run: |
-          if docker push ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest && docker push ghcr.io/${{ github.repository_owner }}/nginx-party:latest; then
-            echo "✅ Docker images pushed successfully!"
-          else
-            echo "💥🐛 Docker push failed! Check credentials & network." >&2
-            exit 1
-          fi
-
-      # List images
-      - name: List pushed images 🐙
-        run: docker images
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:latest
+          docker push ghcr.io/${{ github.repository_owner }}/nginx-party:latest
