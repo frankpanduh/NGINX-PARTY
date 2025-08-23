@@ -1,4 +1,4 @@
-name: Build 🐼 NGINX-PARTY .deb 🚀🎉
+name: Build NGINX-PARTY .deb 🚀
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 env:
-  ENABLE_MODSEC: "false"   # set to "true" to compile ModSecurity v3 + connector
-  NGINX_VERSION: ""        # leave empty to use latest from github.com/nginx/nginx
+  ENABLE_MODSEC: "false"    # set to "true" to compile ModSecurity v3 + connector
+  NGINX_VERSION: ""         # leave empty to use latest from github.com/nginx/nginx
   OPENSSL_VERSION: "3.3.1"
 
 jobs:
@@ -15,12 +15,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Checkout repo
       - name: Checkout repository 📥
         uses: actions/checkout@v3
 
-      # 2) Install dependencies 🔧
-      - name: Install dependencies
+      - name: Install dependencies 🔧
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -30,15 +28,13 @@ jobs:
             libfuzzy-dev libcurl4-openssl-dev liblua5.3-dev
           echo "✅ Dependencies installed!"
 
-      # 3) Download OpenSSL 🛡
-      - name: Download OpenSSL
+      - name: Download OpenSSL 🛡
         run: |
           curl -LO "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
           tar xzf "openssl-${OPENSSL_VERSION}.tar.gz"
           echo "✅ OpenSSL ${OPENSSL_VERSION} ready"
 
-      # 4) Clone NGINX 🌐
-      - name: Clone NGINX
+      - name: Clone NGINX 🌐
         run: |
           git clone https://github.com/nginx/nginx.git
           cd nginx
@@ -47,11 +43,10 @@ jobs:
           fi
           echo "✅ NGINX repository ready"
 
-      # 5) Clone third-party modules 🧩
-      - name: Clone third-party modules
+      - name: Clone third-party modules 🧩
         run: |
           git clone --depth 1 https://github.com/google/ngx_brotli.git
-          git -C ngx_brotli submodule update --init --recursive
+          (cd ngx_brotli && git submodule update --init && cd deps/brotli && make)
           git clone --depth 1 https://github.com/tokers/zstd-nginx-module.git
           git clone --depth 1 https://github.com/leev/ngx_http_geoip2_module.git
           git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git
@@ -59,8 +54,7 @@ jobs:
           git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
           echo "✅ Third-party modules ready"
 
-      # 6) Optional ModSecurity 🛡️
-      - name: Build ModSecurity v3 (optional)
+      - name: Build ModSecurity v3 (optional) 🛡️
         if: env.ENABLE_MODSEC == 'true'
         run: |
           git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity.git
@@ -75,8 +69,7 @@ jobs:
           git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity-nginx.git
           echo "✅ ModSecurity v3 + connector ready"
 
-      # 7) Configure & build NGINX ⚡
-      - name: Configure & Build NGINX
+      - name: Configure & Build NGINX ⚡
         run: |
           cd nginx
           CONFIG_ARGS="\
@@ -104,4 +97,39 @@ jobs:
             --with-openssl=../openssl-${OPENSSL_VERSION} \
             --add-module=../ngx_brotli \
             --add-module=../zstd-nginx-module \
-            --add-module=../ngx_http_ge
+            --add-module=../ngx_http_geoip2_module \
+            --add-module=../headers-more-nginx-module \
+            --add-module=../ngx_cache_purge \
+            --add-module=../ngx-fancyindex"
+          if [ "${ENABLE_MODSEC}" = "true" ]; then
+            CONFIG_ARGS="${CONFIG_ARGS} --add-module=../ModSecurity-nginx"
+          fi
+          ./auto/configure ${CONFIG_ARGS} --with-cc-opt='-O2 -g' --with-ld-opt='-Wl,-rpath,/usr/local/lib'
+          make -j"$(nproc)"
+          echo "🎉 Build successful!"
+
+      - name: Package .deb with checkinstall 📦
+        run: |
+          cd nginx
+          sudo checkinstall --pkgname=nginx-party \
+            --pkgversion=1.0 \
+            --backup=no --deldoc=yes --fstrans=no --default
+          echo "✅ .deb package created"
+
+      - name: Upload .deb artifact 🚀
+        uses: actions/upload-artifact@v4
+        with:
+          name: nginx-party-deb
+          path: ./nginx/nginx-party*.deb
+          retention-days: 7
+
+      - name: Auto-build notes 📝
+        run: |
+          echo "🎉 NGINX-PARTY .deb build complete!"
+          echo "⚙️ Built with: HTTP/3, Brotli, Zstd, GeoIP2, Headers-More, Cache-Purge, FancyIndex"
+          if [ "${ENABLE_MODSEC}" = "true" ]; then
+            echo "🛡️ ModSecurity v3 enabled (connector compiled)"
+          else
+            echo "🛡️ ModSecurity is OFF"
+          fi
+          echo "🐛 If something broke, check CI logs carefully!"
