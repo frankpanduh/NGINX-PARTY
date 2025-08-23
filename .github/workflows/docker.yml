@@ -9,31 +9,57 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
+      # 1️⃣ Checkout the repo
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Download .deb artifact from build workflow
+      # 2️⃣ Download the .deb artifact from the build workflow
+      - name: Download .deb artifact
         uses: actions/download-artifact@v4
         with:
           name: nginx-party-deb
           path: ./docker
 
+      # 3️⃣ Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # 4️⃣ Log in to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
+          # ⚠️ Contributors should replace these secrets if they fork:
+          # DOCKER_USERNAME -> your Docker Hub username
+          # DOCKER_PASSWORD -> your Docker Hub Personal Access Token or password
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Docker image
-        run: |
-          cp docker/*.deb ./docker/
-          docker build -t YOUR_USERNAME/nginx-party:latest ./docker
-
-      - name: Push Docker image
-        uses: docker/build-push-action@v5
+      # 5️⃣ Log in to GHCR (GitHub Container Registry)
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
         with:
-          push: true
-          tags: YOUR_USERNAME/nginx-party:latest
+          registry: ghcr.io
+          # ⚠️ GHCR login uses GitHub username automatically
+          username: ${{ github.actor }}
+          # ⚠️ Contributors must set GHCR_TOKEN secret to a GitHub PAT
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      # 6️⃣ Build and tag Docker images
+      - name: Build Docker images
+        run: |
+          # ⚠️ Update Docker Hub username if forked
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest .
+
+          # Tag for GHCR (auto-uses github.repository_owner)
+          docker tag ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest \
+                     ghcr.io/${{ github.repository_owner }}/nginx-party:latest
+
+      # 7️⃣ Push images to both registries
+      - name: Push to Docker Hub and GHCR
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest
+          docker push ghcr.io/${{ github.repository_owner }}/nginx-party:latest
+
+      # 8️⃣ Optional: List built images
+      - name: List pushed images
+        run: docker images
