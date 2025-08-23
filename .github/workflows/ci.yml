@@ -25,7 +25,7 @@ jobs:
             build-essential git curl wget ca-certificates unzip pkg-config checkinstall \
             libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev libmaxminddb0 libmaxminddb-dev mmdb-bin \
             libzstd-dev autoconf automake libtool doxygen libxml2 libxml2-dev libyajl-dev libgeoip-dev liblmdb-dev \
-            libfuzzy-dev libcurl4-openssl-dev liblua5.3-dev
+            libfuzzy-dev libcurl4-openssl-dev liblua5.3-dev cmake
           echo "✅ Dependencies installed!"
 
       - name: Download OpenSSL 🛡
@@ -46,7 +46,7 @@ jobs:
       - name: Clone third-party modules 🧩
         run: |
           git clone --depth 1 https://github.com/google/ngx_brotli.git
-          (cd ngx_brotli && git submodule update --init && cd deps/brotli && make)
+          (cd ngx_brotli && git submodule update --init && cd deps/brotli && cmake . && make)
           git clone --depth 1 https://github.com/tokers/zstd-nginx-module.git
           git clone --depth 1 https://github.com/leev/ngx_http_geoip2_module.git
           git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git
