@@ -1,4 +1,4 @@
-name-template: "NGINX-PARTY Build v$NEXT_PATCH_VERSION"
+name-template: "NGINX-PARTY v$NEXT_PATCH_VERSION"
 tag-template: "v$NEXT_PATCH_VERSION"
 categories:
   - title: "✨ Features"
@@ -19,8 +19,8 @@ template: |
   $CHANGES
 
   ## 🔧 Install
-  Download `.deb` from Assets below and install with:
+  Download `.deb` from Assets below and install:
 
   ```bash
-  sudo dpkg -i nginx-party-cloudflare_*.deb
+  sudo dpkg -i nginx-party_*.deb
   sudo apt-get -f install

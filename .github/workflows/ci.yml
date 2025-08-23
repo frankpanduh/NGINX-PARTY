@@ -9,18 +9,20 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y build-essential git mercurial devscripts debhelper             libpcre3-dev zlib1g-dev libssl-dev libxslt1-dev libgd-dev             libgeoip-dev libgoogle-perftools-dev libperl-dev cmake ruby-dev             rubygems
+          sudo apt install -y build-essential git mercurial devscripts debhelper \
+            libpcre3-dev zlib1g-dev libssl-dev libxslt1-dev libgd-dev \
+            libgeoip-dev libgoogle-perftools-dev libperl-dev cmake ruby-dev \
+            rubygems
           sudo gem install --no-document fpm
 
       - name: Clone nginx-quic
-        run: |
-          git clone --recursive https://hg.nginx.org/nginx-quic nginx-quic
+        run: git clone --recursive https://hg.nginx.org/nginx-quic nginx-quic
 
       - name: Add modules
         run: |
@@ -52,18 +54,16 @@ jobs:
             --lock-path=/var/lock/nginx.lock
 
       - name: Build
-        run: |
-          cd nginx-quic
-          make -j$(nproc)
+        run: cd nginx-quic && make -j$(nproc)
 
       - name: Package .deb
         run: |
           mkdir -p debian/usr/sbin
           cp nginx-quic/objs/nginx debian/usr/sbin/
-          cd debian && fpm -s dir -t deb -n nginx-quic-custom -v 1.0.0 usr
+          cd debian && fpm -s dir -t deb -n nginx-party -v 1.0.0 usr
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: nginx-quic-deb
+          name: nginx-party-deb
           path: debian/*.deb
