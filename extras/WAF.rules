@@ -1,0 +1,10 @@
+# Starter Web Application Firewall Rules
+# Use these as a reference, modify IDs & rules for your server
+# SQL Injection Prevention
+SecRule REQUEST_URI "@rx select.*from" "id:1001,deny,log,msg:'SQL Injection Attempt'"
+
+# Cross-Site Scripting Prevention
+SecRule REQUEST_URI "@rx <script" "id:1002,deny,log,msg:'XSS Attempt'"
+
+# Block suspicious user agents
+SecRule REQUEST_HEADERS:User-Agent "@rx (?:curl|nikto|sqlmap)" "id:1003,deny,log,msg:'Suspicious User-Agent'"
