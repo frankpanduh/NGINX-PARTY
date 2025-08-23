@@ -1,0 +1,69 @@
+name: Build NGINX-PARTY
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install deps
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential git mercurial devscripts debhelper             libpcre3-dev zlib1g-dev libssl-dev libxslt1-dev libgd-dev             libgeoip-dev libgoogle-perftools-dev libperl-dev cmake ruby-dev             rubygems
+          sudo gem install --no-document fpm
+
+      - name: Clone nginx-quic
+        run: |
+          git clone --recursive https://hg.nginx.org/nginx-quic nginx-quic
+
+      - name: Add modules
+        run: |
+          git clone https://github.com/google/ngx_brotli.git
+          cd ngx_brotli && git submodule update --init && cd ..
+          git clone https://github.com/openresty/headers-more-nginx-module.git
+          git clone https://github.com/sergey-dryabzhinsky/nginx-rtmp-module.git
+
+      - name: Configure
+        run: |
+          cd nginx-quic
+          ./auto/configure \
+            --with-http_v3_module \
+            --with-http_ssl_module \
+            --with-http_v2_module \
+            --with-http_realip_module \
+            --with-http_addition_module \
+            --with-http_sub_module \
+            --with-http_gunzip_module \
+            --with-http_gzip_static_module \
+            --with-http_image_filter_module=dynamic \
+            --add-module=../ngx_brotli \
+            --add-module=../headers-more-nginx-module \
+            --add-module=../nginx-rtmp-module \
+            --prefix=/etc/nginx \
+            --sbin-path=/usr/sbin/nginx \
+            --conf-path=/etc/nginx/nginx.conf \
+            --pid-path=/var/run/nginx.pid \
+            --lock-path=/var/lock/nginx.lock
+
+      - name: Build
+        run: |
+          cd nginx-quic
+          make -j$(nproc)
+
+      - name: Package .deb
+        run: |
+          mkdir -p debian/usr/sbin
+          cp nginx-quic/objs/nginx debian/usr/sbin/
+          cd debian && fpm -s dir -t deb -n nginx-quic-custom -v 1.0.0 usr
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: nginx-quic-deb
+          path: debian/*.deb
