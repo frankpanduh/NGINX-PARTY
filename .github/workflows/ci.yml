@@ -1,3 +1,4 @@
+# .github/workflows/ci.yml
 name: Build NGINX-PARTY .deb 🚀
 
 on:
@@ -6,7 +7,6 @@ on:
   workflow_dispatch:
 
 env:
-  # Toggle kitchen-sink extras
   ENABLE_MODSEC: "false"    # set to "true" to compile ModSecurity v3 + connector
   NGINX_VERSION: ""         # leave empty to use latest from github.com/nginx/nginx
   OPENSSL_VERSION: "3.3.1"
@@ -16,14 +16,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Checkout repo
       - name: Checkout repository 📥
         uses: actions/checkout@v3
 
-      # 2) Install build dependencies
+      - name: Setup SSH key for fallback 🔑
+        if: secrets.SSH_DEPLOY_KEY != ''
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
       - name: Install dependencies 🔧
         run: |
-          echo "⚡ Installing build dependencies..."
           sudo apt-get update
           sudo apt-get install -y \
             build-essential git curl wget ca-certificates unzip pkg-config checkinstall \
@@ -31,55 +36,38 @@ jobs:
             libzstd-dev
 
           if [ "${ENABLE_MODSEC}" = "true" ]; then
-            echo "🔐 Installing ModSecurity build deps..."
             sudo apt-get install -y \
               autoconf automake libtool doxygen \
               libpcre2-dev libxml2 libxml2-dev libyajl-dev libgeoip-dev liblmdb-dev \
               libfuzzy-dev libcurl4-openssl-dev liblua5.3-dev
           fi
 
-          echo "✅ Dependencies installed!"
-
-      # 3) Download OpenSSL
       - name: Download OpenSSL 🛡
         run: |
-          set -e
           curl -LO "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
           tar xzf "openssl-${OPENSSL_VERSION}.tar.gz"
-          echo "✅ OpenSSL ${OPENSSL_VERSION} ready"
 
-      # 4) Clone NGINX mainline
       - name: Clone NGINX 🌐
         run: |
-          set -e
           git clone https://github.com/nginx/nginx.git
           cd nginx
           if [ -n "${NGINX_VERSION}" ]; then
-            echo "📌 Checking out NGINX version: ${NGINX_VERSION}"
             git checkout "${NGINX_VERSION}"
-          else
-            echo "📌 Using latest NGINX (default branch)"
           fi
-          echo "✅ NGINX repository ready"
 
-      # 5) Clone third-party modules
       - name: Clone third-party modules 🧩
         run: |
-          set -e
           git clone --depth 1 https://github.com/google/ngx_brotli.git
           (cd ngx_brotli && git submodule update --init)
-          git clone --depth 1 https://github.com/tokers/nginx-http-zstd.git
+          git clone --depth 1 https://github.com/tokers/zstd-nginx-module.git
           git clone --depth 1 https://github.com/leev/ngx_http_geoip2_module.git
           git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git
           git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
           git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
-          echo "✅ Third-party modules ready"
 
-      # 6) Optional ModSecurity v3
       - name: Build ModSecurity v3 (optional) 🛡️
         if: env.ENABLE_MODSEC == 'true'
         run: |
-          set -e
           git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity.git
           cd ModSecurity
           git submodule update --init --recursive
@@ -87,15 +75,11 @@ jobs:
           ./configure
           make -j"$(nproc)"
           sudo make install
-          sudo ldconfig
           cd ..
           git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity-nginx.git
-          echo "✅ ModSecurity v3 + connector ready"
 
-      # 7) Configure & build NGINX
       - name: Configure & Build NGINX ⚡
         run: |
-          set -e
           cd nginx
           CONFIG_ARGS="\
             --with-compat \
@@ -121,36 +105,22 @@ jobs:
             --with-pcre-jit \
             --with-openssl=../openssl-${OPENSSL_VERSION} \
             --add-module=../ngx_brotli \
-            --add-module=../nginx-http-zstd \
+            --add-module=../zstd-nginx-module \
             --add-module=../ngx_http_geoip2_module \
             --add-module=../headers-more-nginx-module \
             --add-module=../ngx_cache_purge \
-            --add-module=../ngx-fancyindex \
-          "
+            --add-module=../ngx-fancyindex"
           if [ "${ENABLE_MODSEC}" = "true" ]; then
             CONFIG_ARGS="${CONFIG_ARGS} --add-module=../ModSecurity-nginx"
           fi
-
-          echo "🔨 ./auto/configure ${CONFIG_ARGS}"
-          ./auto/configure ${CONFIG_ARGS} \
-            --with-cc-opt='-O2 -g' \
-            --with-ld-opt='-Wl,-rpath,/usr/local/lib'
-
-          echo "⚡ Building..."
+          ./auto/configure ${CONFIG_ARGS} --with-cc-opt='-O2 -g' --with-ld-opt='-Wl,-rpath,/usr/local/lib'
           make -j"$(nproc)"
-          echo "🎉 Build successful!"
 
-      # 8) Package into .deb
       - name: Package .deb with checkinstall 📦
         run: |
-          set -e
           cd nginx
-          sudo checkinstall --pkgname=nginx-party \
-            --pkgversion=1.0 \
-            --backup=no --deldoc=yes --fstrans=no --default
-          echo "✅ .deb package created"
+          sudo checkinstall --pkgname=nginx-party --pkgversion=1.0 --backup=no --deldoc=yes --fstrans=no --default
 
-      # 9) Upload artifact
       - name: Upload .deb artifact 🚀
         uses: actions/upload-artifact@v4
         with:
@@ -158,17 +128,12 @@ jobs:
           path: ./nginx/nginx-party*.deb
           retention-days: 7
 
-      # 10) Auto-build notes
       - name: Auto-build notes 📝
         run: |
           echo "🎉 NGINX-PARTY .deb build complete!"
-          echo "⚙️  Built with: HTTP/3, Brotli, Zstd, GeoIP2, Headers-More, Cache-Purge, FancyIndex"
+          echo "⚙️ Built with: HTTP/3, Brotli, Zstd, GeoIP2, Headers-More, Cache-Purge, FancyIndex"
           if [ "${ENABLE_MODSEC}" = "true" ]; then
-            echo "🛡️  ModSecurity v3 enabled (connector compiled)"
+            echo "🛡️ ModSecurity v3 enabled (connector compiled)"
           else
-            echo "🛡️  ModSecurity is OFF (set ENABLE_MODSEC=true to compile)"
+            echo "🛡️ ModSecurity is OFF (toggle ENABLE_MODSEC=true)"
           fi
-          echo "🧱 Consider adding mitchellkrogza/nginx-ultimate-bad-bot-blocker in runtime configs"
-          echo "🖼  AVIF/WebP served via mime + caching rules in extras/"
-          echo "🔐 Strong TLS with OpenSSL ${OPENSSL_VERSION}"
-          echo "🐛 If something broke, check CI logs carefully!"
