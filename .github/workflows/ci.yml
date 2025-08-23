@@ -12,29 +12,23 @@ jobs:
       - name: Checkout repository 📥
         uses: actions/checkout@v3
 
-      - name: Install dependencies 🔧
+      - name: Install build dependencies 🔧
         run: |
           echo "⚡ Installing build dependencies..."
           sudo apt-get update
           sudo apt-get install -y \
             build-essential libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev wget git \
-            debhelper dh-make checkinstall
+            debhelper dh-make checkinstall pkg-config \
+            libjpeg-dev libpng-dev libwebp-dev libavif-dev
           echo "✅ Dependencies installed! 🎉"
 
-      - name: Clone NGINX 🌐
+      - name: Clone Cloudflare nginx-quiche 🌐
         run: |
-          echo "🐚 Cloning NGINX mainline..."
-          git clone https://github.com/nginx/nginx.git nginx || { echo "💥🐛 ERROR: Could not clone nginx!"; exit 1; }
+          echo "🐚 Cloning Cloudflare nginx-quiche..."
+          git clone --recursive https://github.com/cloudflare/nginx-quiche.git nginx || { echo "💥🐛 ERROR: Could not clone nginx-quiche!"; exit 1; }
           cd nginx
-          git checkout master || { echo "💥🐛 ERROR: Could not checkout master branch!"; exit 1; }
-          echo "✅ NGINX cloned successfully! 🚀"
-
-      - name: Clone QUIC module ⚡
-        run: |
-          echo "🐚 Cloning Cloudflare quiche..."
-          git clone --recursive -b master https://github.com/cloudflare/quiche.git ../nginx-quic \
-            || { echo "💥🐛 ERROR: Could not clone quiche!"; exit 1; }
-          echo "✅ QUIC module cloned successfully! 🌈"
+          git checkout master
+          echo "✅ Cloudflare NGINX-QUIC cloned successfully! 🌈"
 
       - name: Configure & Build NGINX 🔨
         run: |
@@ -45,31 +39,13 @@ jobs:
           ./auto/configure \
             --with-http_ssl_module \
             --with-http_v3_module \
-            --with-openssl=./openssl-3.1.4 \
-            --add-module=../nginx-quic \
+            --with-http_v2_module \
             --with-stream \
-            --with-cc-opt='-O2 -g' \
-            --with-ld-opt='-Wl,-rpath,/usr/local/lib' || { echo "💥🐛 Configure failed!"; exit 1; }
+            --with-http_realip_module \
+            --with-http_secure_link_module \
+            --with-http_stub_status_module \
+            --with-cc-opt='-O2 -g -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE' \
+            --with-ld-opt='-Wl,-z,relro,-z,now -pie -Wl,-rpath,/usr/local/lib' \
+            --with-openssl=./openssl-3.1.4 || { echo "💥🐛 Configure failed!"; exit 1; }
 
           echo "⚡ Starting make..."
-          if make -j$(nproc); then
-            echo "🎉 Build successful! 🌟"
-          else
-            echo "💥🐛 Build failed! Check logs carefully. ⚠️" >&2
-            exit 1
-          fi
-
-      - name: Create .deb package 📦
-        run: |
-          cd nginx
-          echo "⚡ Creating .deb package..."
-          checkinstall --install=no --pkgname=nginx-party --pkgversion=1.0 \
-            --backup=no --fstrans=no --default make install || { echo "💥🐛 .deb packaging failed!"; exit 1; }
-          echo "✅ .deb package ready! 🎉"
-
-      - name: Upload .deb artifact 🚀
-        uses: actions/upload-artifact@v4
-        with:
-          name: nginx-party-deb
-          path: ./nginx/nginx-party_1.0-1_amd64.deb
-          retention-days: 7
