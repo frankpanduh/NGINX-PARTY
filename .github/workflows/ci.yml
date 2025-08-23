@@ -1,102 +1,107 @@
-name: Build NGINX 🐼 with modules ⛽
+name: Build 🐼 NGINX-PARTY .deb 🚀🎉
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  ENABLE_MODSEC: "false"   # set to "true" to compile ModSecurity v3 + connector
+  NGINX_VERSION: ""        # leave empty to use latest from github.com/nginx/nginx
+  OPENSSL_VERSION: "3.3.1"
 
 jobs:
-  build:
+  build-deb:
     runs-on: ubuntu-latest
 
     steps:
       # 1) Checkout repo
-      - name: Checkout repository 📦
-        uses: actions/checkout@v4
+      - name: Checkout repository 📥
+        uses: actions/checkout@v3
 
-      # 2) Install build dependencies
-      - name: Install dependencies 🛠
+      # 2) Install dependencies 🔧
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential \
-            libpcre3 \
-            libpcre3-dev \
-            zlib1g \
-            zlib1g-dev \
-            libssl-dev \
-            libmaxminddb-dev \
-            git \
-            cmake \
-            automake \
-            autoconf \
-            libtool \
-            pkg-config
+            build-essential git curl wget ca-certificates unzip pkg-config checkinstall \
+            libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev libmaxminddb0 libmaxminddb-dev mmdb-bin \
+            libzstd-dev autoconf automake libtool doxygen libxml2 libxml2-dev libyajl-dev libgeoip-dev liblmdb-dev \
+            libfuzzy-dev libcurl4-openssl-dev liblua5.3-dev
+          echo "✅ Dependencies installed!"
 
-      # 3) Download NGINX source
-      - name: Download NGINX source 🌐
+      # 3) Download OpenSSL 🛡
+      - name: Download OpenSSL
         run: |
-          curl -O http://nginx.org/download/nginx-1.27.1.tar.gz
-          tar -xzvf nginx-1.27.1.tar.gz
-          mv nginx-1.27.1 nginx
+          curl -LO "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+          tar xzf "openssl-${OPENSSL_VERSION}.tar.gz"
+          echo "✅ OpenSSL ${OPENSSL_VERSION} ready"
 
-      # 4) Clone third-party modules
-      - name: Clone third-party modules 🧩
+      # 4) Clone NGINX 🌐
+      - name: Clone NGINX
         run: |
-          # Brotli
+          git clone https://github.com/nginx/nginx.git
+          cd nginx
+          if [ -n "${NGINX_VERSION}" ]; then
+            git checkout "${NGINX_VERSION}"
+          fi
+          echo "✅ NGINX repository ready"
+
+      # 5) Clone third-party modules 🧩
+      - name: Clone third-party modules
+        run: |
           git clone --depth 1 https://github.com/google/ngx_brotli.git
-          (cd ngx_brotli && git submodule update --init --recursive)
-          (cd ngx_brotli/deps/brotli && make -j"$(nproc)")
-
-          # Zstandard
+          git -C ngx_brotli submodule update --init --recursive
           git clone --depth 1 https://github.com/tokers/zstd-nginx-module.git
-
-          # GeoIP2
           git clone --depth 1 https://github.com/leev/ngx_http_geoip2_module.git
-
-          # Headers More
           git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git
-
-          # Cache purge
           git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
-
-          # Fancy index
           git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
-
           echo "✅ Third-party modules ready"
 
-      # 5) Configure NGINX
-      - name: Configure NGINX ⚙️
+      # 6) Optional ModSecurity 🛡️
+      - name: Build ModSecurity v3 (optional)
+        if: env.ENABLE_MODSEC == 'true'
         run: |
-          cd nginx
-          ./configure \
-            --prefix=/etc/nginx \
-            --sbin-path=/usr/sbin/nginx \
-            --conf-path=/etc/nginx/nginx.conf \
-            --error-log-path=/var/log/nginx/error.log \
-            --http-log-path=/var/log/nginx/access.log \
-            --with-http_ssl_module \
-            --with-http_v2_module \
-            --with-http_gzip_static_module \
-            --add-module=../ngx_brotli \
-            --add-module=../zstd-nginx-module \
-            --add-module=../ngx_http_geoip2_module \
-            --add-module=../headers-more-nginx-module \
-            --add-module=../ngx_cache_purge \
-            --add-module=../ngx-fancyindex
-
-      # 6) Build & Install
-      - name: Build and Install NGINX 🏗
-        run: |
-          cd nginx
+          git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity.git
+          cd ModSecurity
+          git submodule update --init --recursive
+          ./build.sh
+          ./configure
           make -j"$(nproc)"
           sudo make install
-          nginx -V
+          sudo ldconfig
+          cd ..
+          git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity-nginx.git
+          echo "✅ ModSecurity v3 + connector ready"
 
-      # 7) Upload artifact
-      - name: Upload NGINX binary 📤
-        uses: actions/upload-artifact@v4
-        with:
-          name: nginx-custom
-          path: /usr/sbin/nginx
+      # 7) Configure & build NGINX ⚡
+      - name: Configure & Build NGINX
+        run: |
+          cd nginx
+          CONFIG_ARGS="\
+            --with-compat \
+            --with-http_ssl_module \
+            --with-http_v2_module \
+            --with-http_v3_module \
+            --with-stream=dynamic \
+            --with-stream_ssl_module \
+            --with-stream_ssl_preread_module \
+            --with-http_realip_module \
+            --with-http_addition_module \
+            --with-http_sub_module \
+            --with-http_dav_module \
+            --with-http_flv_module \
+            --with-http_mp4_module \
+            --with-http_gunzip_module \
+            --with-http_gzip_static_module \
+            --with-http_auth_request_module \
+            --with-http_random_index_module \
+            --with-http_secure_link_module \
+            --with-http_slice_module \
+            --with-http_stub_status_module \
+            --with-pcre-jit \
+            --with-openssl=../openssl-${OPENSSL_VERSION} \
+            --add-module=../ngx_brotli \
+            --add-module=../zstd-nginx-module \
+            --add-module=../ngx_http_ge
