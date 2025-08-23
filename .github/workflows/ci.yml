@@ -32,7 +32,8 @@ jobs:
       - name: Clone QUIC module ⚡
         run: |
           echo "🐚 Cloning Cloudflare quiche..."
-          git clone --recursive -b main https://github.com/cloudflare/quiche.git ../nginx-quic || { echo "💥🐛 ERROR: Could not clone quiche!"; exit 1; }
+          git clone --recursive -b master https://github.com/cloudflare/quiche.git ../nginx-quic \
+            || { echo "💥🐛 ERROR: Could not clone quiche!"; exit 1; }
           echo "✅ QUIC module cloned successfully! 🌈"
 
       - name: Configure & Build NGINX 🔨
