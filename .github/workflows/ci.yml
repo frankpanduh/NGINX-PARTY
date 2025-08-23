@@ -1,4 +1,3 @@
-# .github/workflows/ci.yml
 name: Build NGINX-PARTY .deb 🚀
 
 on:
@@ -19,25 +18,15 @@ jobs:
       - name: Checkout repository 📥
         uses: actions/checkout@v3
 
-      - name: Setup SSH key for fallback 🔑
-        if: secrets.SSH_DEPLOY_KEY != ''
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-
       - name: Install dependencies 🔧
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential git curl wget ca-certificates unzip pkg-config checkinstall \
+          sudo apt-get install -y build-essential git curl wget ca-certificates unzip pkg-config checkinstall \
             libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev libmaxminddb0 libmaxminddb-dev mmdb-bin \
             libzstd-dev
 
           if [ "${ENABLE_MODSEC}" = "true" ]; then
-            sudo apt-get install -y \
-              autoconf automake libtool doxygen \
+            sudo apt-get install -y autoconf automake libtool doxygen \
               libpcre2-dev libxml2 libxml2-dev libyajl-dev libgeoip-dev liblmdb-dev \
               libfuzzy-dev libcurl4-openssl-dev liblua5.3-dev
           fi
@@ -81,8 +70,7 @@ jobs:
       - name: Configure & Build NGINX ⚡
         run: |
           cd nginx
-          CONFIG_ARGS="\
-            --with-compat \
+          CONFIG_ARGS="--with-compat \
             --with-http_ssl_module \
             --with-http_v2_module \
             --with-http_v3_module \
@@ -92,48 +80,4 @@ jobs:
             --with-http_realip_module \
             --with-http_addition_module \
             --with-http_sub_module \
-            --with-http_dav_module \
-            --with-http_flv_module \
-            --with-http_mp4_module \
-            --with-http_gunzip_module \
-            --with-http_gzip_static_module \
-            --with-http_auth_request_module \
-            --with-http_random_index_module \
-            --with-http_secure_link_module \
-            --with-http_slice_module \
-            --with-http_stub_status_module \
-            --with-pcre-jit \
-            --with-openssl=../openssl-${OPENSSL_VERSION} \
-            --add-module=../ngx_brotli \
-            --add-module=../zstd-nginx-module \
-            --add-module=../ngx_http_geoip2_module \
-            --add-module=../headers-more-nginx-module \
-            --add-module=../ngx_cache_purge \
-            --add-module=../ngx-fancyindex"
-          if [ "${ENABLE_MODSEC}" = "true" ]; then
-            CONFIG_ARGS="${CONFIG_ARGS} --add-module=../ModSecurity-nginx"
-          fi
-          ./auto/configure ${CONFIG_ARGS} --with-cc-opt='-O2 -g' --with-ld-opt='-Wl,-rpath,/usr/local/lib'
-          make -j"$(nproc)"
-
-      - name: Package .deb with checkinstall 📦
-        run: |
-          cd nginx
-          sudo checkinstall --pkgname=nginx-party --pkgversion=1.0 --backup=no --deldoc=yes --fstrans=no --default
-
-      - name: Upload .deb artifact 🚀
-        uses: actions/upload-artifact@v4
-        with:
-          name: nginx-party-deb
-          path: ./nginx/nginx-party*.deb
-          retention-days: 7
-
-      - name: Auto-build notes 📝
-        run: |
-          echo "🎉 NGINX-PARTY .deb build complete!"
-          echo "⚙️ Built with: HTTP/3, Brotli, Zstd, GeoIP2, Headers-More, Cache-Purge, FancyIndex"
-          if [ "${ENABLE_MODSEC}" = "true" ]; then
-            echo "🛡️ ModSecurity v3 enabled (connector compiled)"
-          else
-            echo "🛡️ ModSecurity is OFF (toggle ENABLE_MODSEC=true)"
-          fi
+            --with-h
