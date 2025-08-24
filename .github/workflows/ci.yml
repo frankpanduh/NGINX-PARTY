@@ -13,8 +13,10 @@ jobs:
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: 🐙 Clone Nginx & Modules
+      - name: 🐙 Clone Modules
         run: |
           git clone --depth 1 https://github.com/nginx/nginx.git -b release-${NGINX_VERSION} nginx-${NGINX_VERSION}-src
           git clone --depth 1 https://github.com/google/ngx_brotli.git
@@ -24,12 +26,6 @@ jobs:
           if [ "$ENABLE_MODSEC" = "true" ]; then
             git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
             git -C ModSecurity submodule update --init --recursive
-            cd ModSecurity
-            ./build.sh
-            ./configure
-            make -j$(nproc)
-            sudo make install
-            cd ..
           fi
 
       - name: ⚡ Configure & Build NGINX
@@ -52,12 +48,21 @@ jobs:
             --with-http_stub_status_module \
             --with-http_secure_link_module \
             --with-http_realip_module \
-            --with-cc-opt='-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -march=native' \
-            --with-ld-opt='-Wl,-z,relro,-z,now'
+            --with-cc-opt="-O3 -march=native -fstack-protector-strong -D_FORTIFY_SOURCE=2" \
+            --with-ld-opt="-Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now"
           make -j$(nproc)
           sudo make install
           cd ..
           echo "🚀 NGINX-PARTY build complete!"
+
+      - name: 📦 Build DEB Package
+        run: |
+          mkdir -p deb
+          cd nginx-${NGINX_VERSION}-src
+          checkinstall --install=no --pkgname=nginx-party --pkgversion=${NGINX_VERSION} --default
+          mv *.deb ../deb/
+          cd ..
+          echo "📦 DEB package ready"
 
     env:
       NGINX_VERSION: 1.29.1

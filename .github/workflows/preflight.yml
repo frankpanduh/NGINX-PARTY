@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: 🐧 Install Dependencies
         run: |
@@ -24,6 +26,10 @@ jobs:
             ccache unzip tar cmake
           sudo rm -rf /var/lib/apt/lists/*
 
+      - name: 🐙 Initialize Submodules
+        run: |
+          git submodule update --init --recursive
+
       - name: 🔧 Confirm Build Tools
         run: |
           gcc --version
@@ -31,16 +37,15 @@ jobs:
           php -v
           redis-server --version
 
-      - name: ✅ Soft Preflight Checks
+      - name: 🛠️ Check Modules
         run: |
-          set -e
           # Check Brotli
           if [ ! -d "./ngx_brotli/deps/brotli" ]; then
             echo "❌ Brotli submodule missing or not initialized"
             exit 1
           fi
 
-          # Check ModSecurity
+          # Check ModSecurity (repo only; build happens later)
           if [ "$ENABLE_MODSEC" = "true" ]; then
             if [ ! -d "./ModSecurity" ]; then
               echo "❌ ModSecurity repo missing"
@@ -48,5 +53,7 @@ jobs:
             fi
           fi
 
-    env:
-      ENABLE_MODSEC: true
+          echo "✅ Soft preflight completed"
+        shell: /usr/bin/bash -e {0}
+        env:
+          ENABLE_MODSEC: true
