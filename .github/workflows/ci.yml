@@ -1,13 +1,14 @@
-name: 🐼 Cyberpunk Panda CI
+name: 🐼🚀 NGINX PARTY - Cyberpunk Panda CI 🌌💾
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
-  build-nginx-modsec:
+  build:
     runs-on: ubuntu-latest
 
     env:
@@ -17,55 +18,73 @@ jobs:
       OPENSSL_VERSION: 3.3.1
 
     steps:
-      - name: ⚡ Checkout repo
+      - name: 🛰️ Checkout source
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
-      - name: 🛠️ Install dependencies
+      - name: 🐼✨ System prep
         run: |
+          echo "🌌 [CyberPanda] Updating system packages..."
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            libpcre3 libpcre3-dev \
-            libxml2 libxml2-dev \
-            libcurl4-openssl-dev \
-            libyajl-dev \
-            liblmdb-dev \
-            lua5.3 liblua5.3-dev \
-            libgeoip-dev \
-            git wget unzip zlib1g-dev
+            build-essential automake autoconf libtool git cmake \
+            libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev \
+            libxml2 libxml2-dev libyajl-dev pkg-config \
+            libgeoip-dev libcurl4-openssl-dev liblmdb-dev \
+            doxygen
 
-      - name: 🐼 Clone ModSecurity
+      - name: 🔐 Build OpenSSL
         run: |
-          echo "Cloning SpiderLabs/ModSecurity..."
-          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
-          cd ModSecurity
-          git submodule init
-          git submodule update --recursive
+          echo "🚀 [CyberPanda] Building OpenSSL v${OPENSSL_VERSION}..."
+          curl -sL https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz | tar xz
+          cd openssl-${OPENSSL_VERSION}
+          ./config --prefix=/usr/local/openssl --openssldir=/usr/local/openssl shared zlib
+          make -j$(nproc)
+          sudo make install
+          cd ..
+          echo "💾 OpenSSL installed @ /usr/local/openssl"
 
-      - name: 🔨 Build ModSecurity
+      - name: 🐼⚔️ Build ModSecurity
         run: |
+          echo "🌌 [CyberPanda] Initializing ModSecurity modules..."
+          git clone --depth 1 --recursive https://github.com/SpiderLabs/ModSecurity
           cd ModSecurity
-          echo "Preparing build scripts..."
+          git submodule update --init --recursive
           autoreconf -fi
           ./configure
           make -j$(nproc)
           sudo make install
           cd ..
-          echo "✅ ModSecurity ninja-panda installed!"
+          echo "✅ [CyberPanda] ModSecurity built and installed!"
 
-      - name: 🌐 Download NGINX
+      - name: 📦 Fetch NGINX + Modules
         run: |
-          wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx.tar.gz
-          mkdir nginx && tar -xzf nginx.tar.gz -C nginx --strip-components=1
+          echo "🚀 [CyberPanda] Fetching NGINX v${NGINX_VERSION} & modules..."
+          git clone https://github.com/nginx/nginx.git --depth 1 --branch ${NGINX_VERSION}
+          git clone https://github.com/google/ngx_brotli.git
+          cd ngx_brotli && git submodule update --init --recursive && cd ..
+          git clone https://github.com/aperezdc/ngx-fancyindex.git
+          git clone https://github.com/SpiderLabs/ModSecurity-nginx.git
 
-      - name: 🔧 Build NGINX with ModSecurity
+      - name: 🛠️ Build NGINX
         run: |
+          echo "🌌 [CyberPanda] Building NGINX with all the toys..."
           cd nginx
-          ./configure --with-compat --add-module=../ModSecurity/nginx/modsecurity
+          ./auto/configure \
+            --with-compat \
+            --with-http_ssl_module \
+            --with-http_v2_module \
+            --with-http_gzip_static_module \
+            --add-module=../ngx_brotli \
+            --add-module=../ngx-fancyindex \
+            --add-module=../ModSecurity-nginx \
+            --with-openssl=../openssl-${OPENSSL_VERSION} \
+            --prefix=/etc/nginx
           make -j$(nproc)
           sudo make install
-          echo "🚀 NGINX + ModSecurity cyberpunk build complete!"
+          cd ..
+          echo "🐼🚀 [CyberPanda] NGINX PARTY successfully built!"
+
+      - name: 🎉 Final message
+        run: echo "🐼🌌🚀 NGINX PARTY build complete — welcome to the Cyberpunk Panda Space rave 💾⚡"
