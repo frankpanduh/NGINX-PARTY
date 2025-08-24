@@ -1,28 +1,34 @@
-name: 🛡️ NGINX-PARTY Preflight Checks ⚡🕶️
+name: 🛠️ PANDUH-PARTY Preflight ⚡🌐🕶️
 
 on:
-  pull_request:
-    branches: ["main"]
   workflow_dispatch:
 
 jobs:
   check-dependencies:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 🐼 Checkout
+      - name: 🐼 Checkout repo
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: 📦 Verify system dependencies
+      - name: 🔍 Check system dependencies
         run: |
-          echo "Checking mandatory packages..."
-          dpkg -l | grep -E "build-essential|autoconf|automake|libtool" || exit 1
+          echo "Checking mandatory tools..."
+          command -v gcc || { echo "gcc missing"; exit 1; }
+          command -v make || { echo "make missing"; exit 1; }
+          command -v git || { echo "git missing"; exit 1; }
+          command -v wget || { echo "wget missing"; exit 1; }
+          command -v rustc || { echo "rustc missing"; exit 1; }
+          command -v cargo || { echo "cargo missing"; exit 1; }
 
-      - name: 🧰 Verify optional modules
+      - name: 💾 Check NGINX source
         run: |
-          echo "Checking optional modules..."
-          command -v rustc >/dev/null 2>&1 || { echo "❌ Rust missing"; exit 1; }
-          command -v cargo >/dev/null 2>&1 || { echo "❌ Cargo missing"; exit 1; }
-          dpkg -l | grep -E "libwebp|libavif" || { echo "❌ AVIF/WEBP libs missing"; exit 1; }
+          if [ ! -f "nginx-${{ env.NGINX_VERSION }}/auto/configure" ]; then
+            echo "❌ NGINX configure script missing!"
+            exit 1
+          fi
 
       - name: ✅ Preflight checks complete
-        run: echo "All dependencies OK — ready to build!"
+        run: echo "All required dependencies and sources are ready!"

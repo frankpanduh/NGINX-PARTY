@@ -1,41 +1,60 @@
-name: 🏷️ NGINX-PARTY Release Automation 💾✨
+name: 🎉 PANDUH-PARTY Release ⚡🌐🕶️
 
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'nginx-party-stable-v*'
+  workflow_dispatch:
 
 jobs:
   release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 🐼 Checkout repository
+      - name: 🐼 Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           submodules: recursive
 
-      - name: 📦 Build release artifacts
-        run: |
-          echo "Building NGINX-PARTY release..."
-          ./scripts/build_release.sh
-          echo "✅ Release artifacts ready!"
-
-      - name: 💾 Upload release assets
-        uses: actions/upload-release-asset@v1
+      - name: 💾 Restore NGINX build cache
+        uses: actions/cache@v4
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./dist/nginx-party-*.deb
-          asset_name: nginx-party-${{ github.ref_name }}.deb
-          asset_content_type: application/vnd.debian.binary-package
+          path: /usr/local/nginx
+          key: nginx-build-${{ env.NGINX_VERSION }}
 
-      - name: 🐳 Push Docker images on release
+      - name: 📦 Package NGINX as DEB
         run: |
-          docker build -t nginx-party:${{ github.ref_name }} .
-          docker tag nginx-party:${{ github.ref_name }} ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-          docker push nginx-party:${{ github.ref_name }}
-          docker push ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          cd packaging
+          ./build-deb.sh
+          cd ..
 
-      - name: ✨ Complete Release
-        run: echo "🎉 NGINX-PARTY release complete!"
+      - name: 🐳 Build Docker image
+        run: |
+          docker build \
+            --build-arg NGINX_PATH=/usr/local/nginx \
+            -t ${{ secrets.DOCKER_HUB_USER }}/nginx-party:${GITHUB_REF_NAME} \
+            -t ghcr.io/${{ github.repository }}/nginx-party:${GITHUB_REF_NAME} \
+            .
+
+      - name: 🚀 Push Docker images
+        run: |
+          docker push ${{ secrets.DOCKER_HUB_USER }}/nginx-party:${GITHUB_REF_NAME}
+          docker push ghcr.io/${{ github.repository }}/nginx-party:${GITHUB_REF_NAME}
+        env:
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_TOKEN }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_USER }}
+          CR_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📝 Create Release Notes
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: NGINX-PARTY Release ${{ github.ref_name }}
+          body: |
+            Stable NGINX-PARTY build with:
+            - NGINX 1.29.1
+            - QUIC + HTTP/3
+            - ModSecurity
+            - Brotli, Cache Purge, FancyIndex
+            - AVIF/WEBP, WebSockets, Rust support
+            - Optimized build flags & security
