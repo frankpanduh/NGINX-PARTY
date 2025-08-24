@@ -1,43 +1,41 @@
-name: NGINX-PARTY Release Automation 🐼🚀⚡
+name: 🏷️ NGINX-PARTY Release Automation 💾✨
 
 on:
-  workflow_dispatch:
   push:
     tags:
-      - "nginx-party-stable-v*"
+      - 'v*.*.*'
 
 jobs:
   release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: ⚡ Checkout repo
+      - name: 🐼 Checkout repository
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           submodules: recursive
 
-      - name: 📦 Create release notes
+      - name: 📦 Build release artifacts
         run: |
-          echo "Release: $GITHUB_REF_NAME" > release_notes.txt
-          echo "NGINX-PARTY stable build with QUIC + Mods" >> release_notes.txt
+          echo "Building NGINX-PARTY release..."
+          ./scripts/build_release.sh
+          echo "✅ Release artifacts ready!"
 
-      - name: 🔐 Login Docker & GHCR
-        uses: docker/login-action@v2
+      - name: 💾 Upload release assets
+        uses: actions/upload-release-asset@v1
         with:
-          username: ${{ secrets.DOCKER_HUB_USER }}
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./dist/nginx-party-*.deb
+          asset_name: nginx-party-${{ github.ref_name }}.deb
+          asset_content_type: application/vnd.debian.binary-package
 
-      - name: 🐳 Build & push Docker images
+      - name: 🐳 Push Docker images on release
         run: |
-          docker build -t nginx-party:$GITHUB_REF_NAME .
-          docker tag nginx-party:$GITHUB_REF_NAME docker.io/${{ secrets.DOCKER_HUB_USER }}/nginx-party:$GITHUB_REF_NAME
-          docker push docker.io/${{ secrets.DOCKER_HUB_USER }}/nginx-party:$GITHUB_REF_NAME
-          docker tag nginx-party:$GITHUB_REF_NAME ghcr.io/${{ github.repository_owner }}/nginx-party:$GITHUB_REF_NAME
-          docker push ghcr.io/${{ github.repository_owner }}/nginx-party:$GITHUB_REF_NAME
+          docker build -t nginx-party:${{ github.ref_name }} .
+          docker tag nginx-party:${{ github.ref_name }} ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          docker push nginx-party:${{ github.ref_name }}
+          docker push ghcr.io/${{ github.repository }}:${{ github.ref_name }}
 
-      - name: 📝 Create GitHub release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: "NGINX-PARTY ${{ github.ref_name }}"
-          body_path: release_notes.txt
+      - name: ✨ Complete Release
+        run: echo "🎉 NGINX-PARTY release complete!"

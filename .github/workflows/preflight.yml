@@ -1,34 +1,28 @@
-name: NGINX-PARTY Preflight Checks ⚡🛠️🐼
+name: 🛡️ NGINX-PARTY Preflight Checks ⚡🕶️
 
 on:
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
-  preflight:
+  check-dependencies:
     runs-on: ubuntu-latest
-
     steps:
-      - name: ⚡ Checkout repo
+      - name: 🐼 Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: 🛠️ Install basic dependencies
+      - name: 📦 Verify system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            build-essential autoconf automake libtool pkg-config \
-            libpcre3 libpcre3-dev libxml2 libxml2-dev libcurl4-openssl-dev \
-            libyajl-dev liblmdb-dev lua5.3 liblua5.3-dev libgeoip-dev \
-            git wget unzip zlib1g-dev checkinstall cmake ccache
+          echo "Checking mandatory packages..."
+          dpkg -l | grep -E "build-essential|autoconf|automake|libtool" || exit 1
 
-      - name: 🐼 Validate submodules
+      - name: 🧰 Verify optional modules
         run: |
-          git submodule update --init --recursive
-          echo "✅ Submodules OK!"
+          echo "Checking optional modules..."
+          command -v rustc >/dev/null 2>&1 || { echo "❌ Rust missing"; exit 1; }
+          command -v cargo >/dev/null 2>&1 || { echo "❌ Cargo missing"; exit 1; }
+          dpkg -l | grep -E "libwebp|libavif" || { echo "❌ AVIF/WEBP libs missing"; exit 1; }
 
-      - name: 🌐 Check NGINX source tarball
-        run: |
-          wget http://nginx.org/download/nginx-1.27.0.tar.gz -O nginx-1.27.0.tar.gz
-          tar -tzf nginx-1.27.0.tar.gz > /dev/null
-          echo "✅ NGINX tarball looks good!"
+      - name: ✅ Preflight checks complete
+        run: echo "All dependencies OK — ready to build!"
