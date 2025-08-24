@@ -1,4 +1,5 @@
 name: "⚡ Build NGINX-PARTY"
+
 on:
   push:
     branches:
@@ -21,8 +22,7 @@ jobs:
           git -C ngx_brotli submodule update --init --recursive
           git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
           git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
-          if [ "$ENABLE_MODSEC" = "true" ]; then
-            git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
+          if [ "$ENABLE_MODSEC" = "true" ] && [ -d "./ModSecurity" ]; then
             git -C ModSecurity submodule update --init --recursive
           fi
 
@@ -42,7 +42,7 @@ jobs:
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
-            $( [ "$ENABLE_MODSEC" = "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" ) \
+            $( [ "$ENABLE_MODSEC" = "true" ] && [ -d "../ModSecurity/nginx/modsecurity" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" ) \
             --with-http_stub_status_module \
             --with-http_secure_link_module \
             --with-http_realip_module \
@@ -59,7 +59,6 @@ jobs:
             --prefix=/usr/local/nginx \
             -C nginx-${NGINX_VERSION}-src \
             .
-
     env:
       NGINX_VERSION: 1.29.1
       OPENSSL_VERSION: 3.3.1

@@ -1,10 +1,11 @@
-name: "💻 Preflight Checks"
+ name: "💻 Preflight Checks"
+
 on:
   workflow_dispatch:
 
 jobs:
   preflight:
-    name: "💻 Preflight Dependencies"
+    name: "💻 Preflight Checks"
     runs-on: ubuntu-latest
     steps:
       - name: "📥 Checkout Repo"
@@ -21,20 +22,16 @@ jobs:
             ccache unzip tar cmake
           sudo rm -rf /var/lib/apt/lists/*
 
-      - name: "✅ Soft Preflight"
+      - name: "✅ Auto-init Submodules"
         run: |
-          # Check Brotli
           if [ ! -d "./ngx_brotli/deps/brotli" ]; then
-            echo "❌ Brotli submodule missing or not initialized"
-            exit 1
+            git clone --depth 1 https://github.com/google/ngx_brotli.git
+            git -C ngx_brotli submodule update --init --recursive
           fi
-
-          # Check ModSecurity repo only
-          if [ ! -d "./ModSecurity" ]; then
-            echo "❌ ModSecurity repo missing"
-            exit 1
+          if [ "$ENABLE_MODSEC" = "true" ] && [ ! -d "./ModSecurity" ]; then
+            git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
+            git -C ModSecurity submodule update --init --recursive
           fi
-
           echo "✅ Preflight complete"
     env:
       ENABLE_MODSEC: true
