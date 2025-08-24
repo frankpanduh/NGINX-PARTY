@@ -1,28 +1,19 @@
-name: 🛰️ Release NGINX-PARTY
-
+name: "📦 Release NGINX-PARTY"
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
   release:
-    name: 🛰️ Release NGINX-PARTY
+    name: "🚀 Release NGINX-PARTY"
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: 📥 Checkout Repo
+      - name: "📥 Checkout Repo"
         uses: actions/checkout@v4
 
-      - name: 📂 Download Build Artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: nginx-party-build
-          path: ./build
-
-      - name: 📤 Upload Release Artifacts
+      - name: "📤 Upload Release Artifacts"
         uses: softprops/action-gh-release@v1
         with:
-          files: './build/*.deb'
+          files: '*.deb'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

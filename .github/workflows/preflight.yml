@@ -1,21 +1,16 @@
-name: 💻 Preflight Checks & Dependencies
-
+name: "💻 Preflight Checks"
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
   preflight:
-    name: ⚡ Soft Preflight - NGINX & ModSecurity
+    name: "💻 Preflight Dependencies"
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout Repo
+      - name: "📥 Checkout Repo"
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: 🐧 Install Dependencies
+      - name: "🐧 Install Dependencies"
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
@@ -23,22 +18,23 @@ jobs:
             libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libtool automake \
             libyajl-dev liblmdb-dev libluajit-5.1-dev \
             php8.3-cli php8.3-fpm mariadb-client composer redis-server \
-            ccache unzip tar cmake checkinstall
+            ccache unzip tar cmake
+          sudo rm -rf /var/lib/apt/lists/*
 
-      - name: 🔧 Initialize Submodules
+      - name: "✅ Soft Preflight"
         run: |
-          git submodule update --init --recursive
-          # Ensure ngx_brotli deps
+          # Check Brotli
           if [ ! -d "./ngx_brotli/deps/brotli" ]; then
-            git clone --depth 1 https://github.com/google/brotli.git ngx_brotli/deps/brotli
-          fi
-          # Ensure ModSecurity repo exists if enabled
-          if [ "$ENABLE_MODSEC" = "true" ] && [ ! -d "./ModSecurity" ]; then
-            git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
-            git -C ModSecurity submodule update --init --recursive
+            echo "❌ Brotli submodule missing or not initialized"
+            exit 1
           fi
 
-      - name: ✅ Soft Preflight Completed
-        run: echo "All dependencies and submodules are present."
-        env:
-          ENABLE_MODSEC: true
+          # Check ModSecurity repo only
+          if [ ! -d "./ModSecurity" ]; then
+            echo "❌ ModSecurity repo missing"
+            exit 1
+          fi
+
+          echo "✅ Preflight complete"
+    env:
+      ENABLE_MODSEC: true
