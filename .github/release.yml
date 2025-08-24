@@ -1,16 +1,13 @@
 name: 🛰️ Release NGINX-PARTY
 
 on:
-  workflow_run:
-    workflows: ["⚡ CI - Build & Test NGINX-PARTY"]
-    types:
-      - completed
+  workflow_dispatch:
 
 jobs:
   release:
-    name: 🛰️ Publish Release
+    name: 🚀 Release DEB & Docker
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    needs: build
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
@@ -21,3 +18,10 @@ jobs:
           files: '*.deb'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📦 Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/nginx-party:stable

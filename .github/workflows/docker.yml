@@ -1,23 +1,19 @@
-name: 🐳 Build Docker Image
+name: 🐳 Docker Build & Push
 
 on:
-  workflow_run:
-    workflows: ["⚡ CI - Build & Test NGINX-PARTY"]
-    types:
-      - completed
+  workflow_dispatch:
 
 jobs:
   docker:
-    name: 🐳 Build & Push Docker Image
+    name: 🐋 Build Docker Image
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 📦 Build Docker Image
+      - name: 🐳 Build & Push
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
