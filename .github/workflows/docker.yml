@@ -35,7 +35,10 @@ jobs:
       - name: Build Docker image 🔨
         run: |
           cp ./deb/nginx-party*.deb ./Dockerfile-root/
-          docker build -t nginx-party:latest ./Dockerfile-root
+          docker build \
+            --build-arg ENABLE_MODSEC=true \
+            --build-arg MODSEC_MODE=DetectionOnly \
+            -t nginx-party:latest ./Dockerfile-root
           docker tag nginx-party:latest ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest
           docker tag nginx-party:latest ghcr.io/${{ github.repository_owner }}/nginx-party:latest
 

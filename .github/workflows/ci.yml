@@ -6,7 +6,8 @@ on:
   workflow_dispatch:
 
 env:
-  ENABLE_MODSEC: "false"
+  ENABLE_MODSEC: "true"
+  MODSEC_MODE: "DetectionOnly"
   NGINX_VERSION: ""
   OPENSSL_VERSION: "3.3.1"
 
@@ -54,7 +55,7 @@ jobs:
           git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
           git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
 
-      - name: Build ModSecurity v3 (optional) 🛡️
+      - name: Build ModSecurity v3 🛡️
         if: env.ENABLE_MODSEC == 'true'
         run: |
           git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity.git
@@ -67,6 +68,11 @@ jobs:
           sudo ldconfig
           cd ..
           git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity-nginx.git
+          # Copy starter pack rules from /extras if present
+          if [ -d ../extras/modsec-starter-pack/rules ]; then
+            sudo cp ../extras/modsec-starter-pack/rules/*.conf /etc/modsecurity/rules/
+            sudo cp ../extras/modsec-starter-pack/modsecurity.conf /etc/modsecurity/modsecurity.conf
+          fi
 
       - name: Configure & Build NGINX ⚡
         run: |
@@ -115,7 +121,6 @@ jobs:
             --pkgversion=1.0 \
             --backup=no --deldoc=yes --fstrans=no --default
 
-      # ✅ **Upload artifact step added**
       - name: Upload NGINX .deb artifact 📦
         uses: actions/upload-artifact@v4
         with:
