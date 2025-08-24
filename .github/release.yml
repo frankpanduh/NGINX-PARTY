@@ -1,30 +1,28 @@
-name: 🚀 NGINX-PARTY Release (🛠️ Stable + QUIC + Mods)
+name: 📝 NGINX-PARTY Release Notes & Build
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   release:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 📥 Checkout repo
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      - name: 📦 Upload .deb artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: nginx-party-${{ env.NGINX_VERSION }}.deb
-          path: nginx-${{ env.NGINX_VERSION }}-src/*.deb
-
-      - name: 🐳 Build Docker image
+      - name: 🐧 Get Current Version
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:${{ env.NGINX_VERSION }} .
-          docker tag ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:${{ env.NGINX_VERSION }} ghcr.io/${{ github.repository_owner }}/nginx-party:${{ env.NGINX_VERSION }}
+          echo "Current version: $GITHUB_REF"
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: 🚀 Push Docker images
+      - name: 📝 Generate Release Notes
         run: |
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:${{ env.NGINX_VERSION }}
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
-          docker push ghcr.io/${{ github.repository_owner }}/nginx-party:${{ env.NGINX_VERSION }}
+          gh release create $VERSION --title "NGINX-PARTY $VERSION" --notes "Automated build with stable + QUIC + AVIF/WEBP + Mods + ModSecurity"
+
+      - name: 📦 Attach DEB & Docker Info
+        run: |
+          echo "Attach DEB packages and Docker info manually or via artifacts"

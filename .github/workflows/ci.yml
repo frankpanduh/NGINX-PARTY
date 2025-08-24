@@ -1,13 +1,12 @@
-name: 🔧 NGINX-PARTY CI (🛠️ Build NGINX 1.29.1 + QUIC + Mods)
+name: 🛠️ Build NGINX-PARTY Stable + QUIC + Mods
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 env:
-  NGINX_VERSION: 1.29.1
+  NGINX_VERSION: release-1.29.1
   OPENSSL_VERSION: 3.3.1
   ENABLE_MODSEC: true
   MODSEC_MODE: DetectionOnly
@@ -15,66 +14,39 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 📥 Checkout repo
+      - name: 📥 Checkout Repo
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: ⚡ Cache apt packages
+      - name: 🌐 Cache Dependencies
         uses: actions/cache@v4
         with:
-          path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-${{ hashFiles('**/ci.yml') }}
+          path: |
+            ~/.ccache
+            nginx-${{ env.NGINX_VERSION }}-src
+          key: nginx-${{ env.NGINX_VERSION }}-${{ hashFiles('**/ci.yml') }}
 
-      - name: 🌐 Setup dependencies
+      - name: 🐧 Preflight Dependencies
+        uses: ./.github/workflows/preflight.yml
+
+      - name: 🌊 Clone NGINX Mainline
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential git wget curl cmake \
-            libpcre3 libpcre3-dev zlib1g zlib1g-dev \
-            libssl-dev libxml2-dev libxslt1-dev libgd-dev \
-            libgeoip-dev libjemalloc-dev libmaxminddb-dev \
-            libtool autoconf automake pkg-config \
-            libyajl-dev liblmdb-dev libcurl4-openssl-dev \
-            python3 python3-pip libluajit-5.1-dev \
-            libbrotli-dev libbrotli1 debhelper dh-make \
-            fakeroot libjemalloc-dev ccache
-          sudo rm -rf /var/lib/apt/lists/*
+          git clone --branch $NGINX_VERSION --depth 1 https://github.com/nginx/nginx.git nginx-${NGINX_VERSION}-src
 
-      - name: 📥 Cache ccache
-        uses: actions/cache@v4
-        with:
-          path: ~/.ccache
-          key: ccache-${{ runner.os }}-${{ env.NGINX_VERSION }}-${{ env.OPENSSL_VERSION }}
-
-      - name: 🦾 Clone NGINX source
+      - name: 🌟 Clone 3rd Party Modules
         run: |
-          git clone --depth 1 --branch release-${NGINX_VERSION} https://github.com/nginx/nginx.git nginx-${NGINX_VERSION}-src
-
-      - name: 🛠️ Fetch modules
-        run: |
-          git clone --depth 1 https://github.com/google/ngx_brotli.git
-          git submodule update --init --recursive
-          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
-          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
+          git clone --depth 1 https://github.com/google/ngx_brotli.git ngx_brotli
+          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git ngx_cache_purge
+          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git ngx-fancyindex
+          git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git headers-more-nginx-module
+          git clone --depth 1 https://github.com/openresty/lua-nginx-module.git lua-nginx-module
+          git clone --depth 1 https://github.com/openresty/redis2-nginx-module.git ngx_http_redis
           git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git ModSecurity
-          cd ModSecurity
-          git submodule update --init --recursive
-          git checkout v3/master
-          ./build.sh
-          ./configure
-          make -j$(nproc)
-          cd ..
+          cd ModSecurity && git submodule update --init --recursive && cd ..
 
-      - name: 🔧 Build NGINX + modules
+      - name: 🔧 Configure & Build NGINX
         run: |
           cd nginx-${NGINX_VERSION}-src
-          if [ ! -f "./auto/configure" ]; then
-            echo "❌ nginx/auto/configure missing!"
-            exit 1
-          fi
           ./auto/configure \
             --with-compat \
             --with-http_ssl_module \
@@ -85,20 +57,29 @@ jobs:
             --with-http_gzip_static_module \
             --with-http_v2_module \
             --with-http_image_filter_module \
-            --with-http_websocket_module \
             --with-http_videostream_module \
+            --with-http_stub_status_module \
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
+            --add-module=../headers-more-nginx-module \
+            --add-module=../lua-nginx-module \
+            --add-module=../ngx_http_redis \
             $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" )
           make -j$(nproc)
           sudo make install
           cd ..
-          echo "🚀 NGINX + ModSecurity build complete — panda style!"
+          echo "🚀 NGINX + Mods + ModSecurity build complete — panda style!"
 
-      - name: 📦 Package .deb
+      - name: 📦 Create DEB Package
         run: |
-          cd nginx-${NGINX_VERSION}-src
-          checkinstall -y --pkgname=nginx-party --pkgversion=${NGINX_VERSION} --backup=no \
-            --deldoc=yes --fstrans=no --default
-          cd ..
+          mkdir -p deb_package/DEBIAN
+          echo "Package: nginx-party" > deb_package/DEBIAN/control
+          echo "Version: 1.29.1" >> deb_package/DEBIAN/control
+          echo "Section: web" >> deb_package/DEBIAN/control
+          echo "Priority: optional" >> deb_package/DEBIAN/control
+          echo "Architecture: amd64" >> deb_package/DEBIAN/control
+          echo "Maintainer: NGINX PARTY <you@example.com>" >> deb_package/DEBIAN/control
+          echo "Description: NGINX-PARTY build with QUIC, AVIF/WEBP, Lua, Brotli, Redis, ModSecurity" >> deb_package/DEBIAN/control
+          sudo cp /usr/local/sbin/nginx deb_package/
+          dpkg-deb --build deb_package
