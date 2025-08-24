@@ -16,27 +16,32 @@ jobs:
       OPENSSL_VERSION: 3.3.1
 
     steps:
-      - name: 🐼 Checkout repo
+      - name: 🐼 Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: 🛠 Setup Dependencies
+      - name: 🛠 Install build tools & dependencies
         run: |
-          echo "💾 Installing build essentials, Rust, Python3, CMake, and ninja-panda powers..."
+          echo "Installing build essentials and optional libs..."
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake libpcre3 libpcre3-dev zlib1g-dev libssl-dev \
-            git curl wget autoconf automake libtool pkg-config rustc cargo python3 python3-pip
+          sudo apt-get install -y \
+            build-essential cmake autoconf automake libtool pkg-config git curl wget \
+            rustc cargo python3 python3-pip \
+            libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev \
+            libbrotli-dev libwebp-dev libavif-dev \
+            libcurl4-openssl-dev libyajl-dev liblmdb-dev \
+            libgeoip-dev libmaxminddb-dev libxml2-dev \
+            liblua5.4-dev libssdeep-dev
 
       - name: 📦 ModSecurity Submodules 🛡️
         if: env.ENABLE_MODSEC == 'true'
         run: |
-          echo "🐼 Cloning ModSecurity dojo..."
-          if [ ! -d "ModSecurity" ]; then
-            git clone --recursive https://github.com/SpiderLabs/ModSecurity.git
-          fi
+          echo "Initializing ModSecurity submodules..."
           cd ModSecurity
-          echo "🛠 Preparing ModSecurity build scripts..."
+          git submodule init
+          git submodule update --recursive
+          echo "Preparing build scripts..."
           autoreconf -fi
           ./configure
           make -j$(nproc)
@@ -47,7 +52,7 @@ jobs:
       - name: 🐙 Build NGINX
         run: |
           echo "🔧 Building NGINX with web media powers, QUIC, SSL, caching, stream, and threads..."
-          cd nginx
+          cd nginx || { echo "nginx folder missing, aborting"; exit 1; }
           ./auto/configure \
             --with-http_ssl_module \
             --with-http_v3_module \
@@ -66,19 +71,10 @@ jobs:
 
       - name: 🖼️ Test Media Modules
         run: |
-          echo "🖼️ Checking WebP / AVIF / Brotli support..."
-          nginx -V | grep -E "ngx_http_brotli_module|webp|avif" || echo "⚠️ Some media modules may be missing"
+          echo "Checking WebP / AVIF / other media module support..."
+          # optional verification commands here
 
-      - name: 🔍 Debug Info & Build Logs
-        run: |
-          echo "🔎 NGINX Version + Modules:"
-          nginx -V
-          echo "📦 Linked libraries:"
-          ldd /usr/local/nginx/sbin/nginx
-          echo "📝 NGINX logs (if present):"
-          [ -f /usr/local/nginx/logs/error.log ] && tail -n 20 /usr/local/nginx/logs/error.log || echo "No logs yet"
-
-      - name: 🐞 Optional Debug Hook
+      - name: 🔍 Debug Info
         if: failure()
         run: |
           echo "💀 Build failed! Dumping recent sys info for debugging:"
