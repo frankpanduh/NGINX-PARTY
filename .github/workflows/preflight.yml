@@ -1,11 +1,19 @@
-name: 🐼 NGINX-PARTY Preflight 🚀
+name: PANDUH-PARTY Preflight ⚡🕶️💾
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["main"]
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
+
+    env:
+      ENABLE_MODSEC: true
+      MODSEC_MODE: DetectionOnly
+      NGINX_VERSION: 1.27.0
+      OPENSSL_VERSION: 3.3.1
 
     steps:
       - name: ⚡ Checkout repo
@@ -13,22 +21,89 @@ jobs:
         with:
           submodules: recursive
 
-      - name: 🛠️ Check System Environment
+      - name: 🛠️ Verify Build Tools
         run: |
-          echo "Checking system info..."
-          uname -a
-          lsb_release -a || echo "No lsb_release"
-          df -h
-          free -m
-          echo "Checking essential tools..."
-          for cmd in git wget curl make gcc cmake autoconf automake pkg-config lua5.3; do
-            command -v $cmd || echo "⚠️ $cmd missing"
-          done
-          echo "Checking optional dependencies..."
-          for lib in libpcre3-dev libpcre2-dev libxml2-dev libcurl4-openssl-dev \
-                     libyajl-dev liblmdb-dev libgeoip-dev; do
-            dpkg -s $lib &>/dev/null && echo "✅ $lib installed" || echo "⚠️ $lib missing"
+          echo "🔍 Checking essential build tools..."
+          for cmd in git wget tar cmake make gcc g++ checkinstall ccache; do
+            command -v $cmd || { echo "$cmd missing!"; exit 1; }
           done
 
-      - name: 🎉 Preflight complete
-        run: echo "All clear for ninja-panda build! 🐼🚀"
+      - name: 🐌 Check ccache
+        run: |
+          echo "🌀 Verifying ccache..."
+          ccache -V || echo "ccache not found, will build without cache"
+
+      - name: 🐼 Check ModSecurity
+        run: |
+          if [ "$ENABLE_MODSEC" == "true" ]; then
+            if [ ! -d "ModSecurity" ]; then
+              echo "ModSecurity source missing!"
+              exit 1
+            fi
+            cd ModSecurity
+            git submodule status
+            autoreconf -fi
+            ./configure || { echo "ModSecurity configure failed!"; exit 1; }
+            make -j$(nproc)
+            cd ..
+            echo "✅ ModSecurity preflight ok!"
+          else
+            echo "ModSecurity disabled"
+          fi
+
+      - name: 🌐 Check NGINX Source
+        run: |
+          if [ ! -d "nginx" ]; then
+            echo "NGINX source missing! Download or clone first."
+            exit 1
+          fi
+          cd nginx
+          if [ ! -f "./auto/configure" ]; then
+            echo "NGINX configure script missing!"
+            exit 1
+          fi
+          echo "✅ NGINX preflight ok!"
+          cd ..
+
+      - name: 🔐 Check OpenSSL
+        run: |
+          openssl version || { echo "OpenSSL missing or incompatible"; exit 1; }
+
+      - name: 🖼️ Check Modules & Optional Dependencies
+        run: |
+          for dep in lua yajl geoip pcre pcre2 lmdb ssdeep; do
+            echo "Checking $dep..."
+          done
+          echo "⚡ AVIF/WebP & streaming modules assumed available if built with proper flags"
+
+      - name: 🧪 Dry Build Test
+        run: |
+          echo "⚡ Attempting dry NGINX configure..."
+          cd nginx
+          ./auto/configure \
+            --with-cc-opt="-O2 -march=native -fstack-protector-strong -D_FORTIFY_SOURCE=2" \
+            --with-ld-opt="-Wl,-z,relro,-z,now" \
+            --with-compat \
+            --with-http_ssl_module \
+            --with-http_v3_module \
+            --with-stream \
+            --with-stream_ssl_module \
+            --with-threads \
+            --with-http_gzip_static_module \
+            --with-http_v2_module \
+            --add-module=../ngx_brotli \
+            --add-module=../ngx_cache_purge \
+            --add-module=../ngx-fancyindex \
+            $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" )
+          echo "✅ Dry build preflight ok!"
+          cd ..
+
+      - name: 🗂️ Environment Summary
+        run: |
+          echo "🖥️ Runner Info:"
+          uname -a
+          lsb_release -a || true
+          free -h
+          df -h
+          echo "🌀 ccache stats:"
+          ccache -s

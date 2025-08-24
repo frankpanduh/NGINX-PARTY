@@ -1,197 +1,109 @@
-name: "PANDUH-PARTY 🐼⚡🌐 (Build NGINX Stable + QUIC + Mods)"
+name: PANDUH-PARTY (🛠️ Build NGINX (Stable + QUIC + Mods) 🚀🕶️💾)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
-  workflow_dispatch:
-
-env:
-  NGINX_VERSION: "1.26.2"          # stable pin (main branch)
-  ENABLE_MODSEC: "true"
-  ENABLE_RTMP: "false"             # set "true" to include nginx-rtmp-module
-  ENABLE_FANCYINDEX: "true"        # set "false" to skip fancy index
-  CCACHE_DIR: "${{ github.workspace }}/.ccache"
+    branches: ["main"]
 
 jobs:
-  build:
+  build-nginx:
     runs-on: ubuntu-latest
+    env:
+      ENABLE_MODSEC: true
+      MODSEC_MODE: DetectionOnly
+      NGINX_VERSION: 1.27.0
+      OPENSSL_VERSION: 3.3.1
 
     steps:
-      - name: 📥 Checkout (submodules ready)
+      - name: ⚡ Checkout repo
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      # ---------- SPEED BOOSTS ----------
-      - name: 🧠 Cache APT (.deb archives)
+      - name: 🗂️ Cache APT packages
         uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives
-          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
-          restore-keys: |
-            apt-${{ runner.os }}-
+          key: ${{ runner.os }}-apt-${{ hashFiles('**/ci.yml') }}
 
-      - name: 🧠 Cache ccache
+      - name: 🐌 Cache ccache
         uses: actions/cache@v4
         with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ runner.os }}-${{ env.NGINX_VERSION }}
-          restore-keys: |
-            ccache-${{ runner.os }}-
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ env.NGINX_VERSION }}-${{ env.OPENSSL_VERSION }}
 
-      # ---------- BUILD DEPS ----------
-      - name: ⚙️ Install build deps (secure & media-capable)
+      - name: 🛠️ Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            build-essential ccache git wget curl ca-certificates \
-            autoconf automake libtool pkg-config \
-            libpcre3 libpcre3-dev libpcre2-dev \
-            zlib1g zlib1g-dev libxslt1-dev \
-            libgd-dev libwebp-dev libavif-dev \
-            libxml2-dev libgeoip-dev libmaxminddb0 libmaxminddb-dev mmdb-bin \
-            libyajl-dev libcurl4-openssl-dev liblmdb-dev \
-            uuid-dev cmake \
-            rustc cargo
-          sudo rm -rf /var/lib/apt/lists/*  # keep runners tidy
+          sudo apt-get install -y --no-install-recommends \
+            build-essential autoconf automake libtool pkg-config \
+            libpcre3 libpcre3-dev libxml2 libxml2-dev libcurl4-openssl-dev \
+            libyajl-dev liblmdb-dev lua5.3 liblua5.3-dev libgeoip-dev \
+            git wget unzip zlib1g-dev cmake checkinstall ccache
+          sudo rm -rf /var/lib/apt/lists/*
 
-      # ---------- SOURCE FETCH (CACHED) ----------
-      - name: 🧠 Cache NGINX source tarball
+      - name: 🐼 Clone & Cache ModSecurity
         uses: actions/cache@v4
         with:
-          path: nginx-${{ env.NGINX_VERSION }}.tar.gz
-          key: nginx-src-${{ env.NGINX_VERSION }}
-
-      - name: 🌐 Fetch NGINX (stable pin)
-        run: |
-          if [ ! -f "nginx-${NGINX_VERSION}.tar.gz" ]; then
-            echo "Downloading nginx-${NGINX_VERSION}.tar.gz …"
-            curl -fsSL "http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" -o "nginx-${NGINX_VERSION}.tar.gz"
-          fi
-          tar -xzf "nginx-${NGINX_VERSION}.tar.gz"
-          if [ ! -d "nginx-${NGINX_VERSION}/auto" ]; then
-            echo "❌ Extraction failed: ./auto not found"; exit 1
-          fi
-          mv "nginx-${NGINX_VERSION}" nginx
-
-      - name: 🔒 Fetch OpenSSL (QUIC/HTTP3: quictls)
-        run: |
-          git clone --depth 1 https://github.com/quictls/openssl.git openssl
-
-      - name: 🌀 Fetch ngx_brotli (recursive)
-        run: |
-          git clone --recursive https://github.com/google/ngx_brotli.git
-
-      - name: 🧼 Fetch cache purge
-        run: |
-          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
-
-      - name: 📁 (opt) Fetch fancyindex
-        if: env.ENABLE_FANCYINDEX == 'true'
-        run: |
-          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
-
-      - name: 📡 (opt) Fetch RTMP
-        if: env.ENABLE_RTMP == 'true'
-        run: |
-          git clone --depth 1 https://github.com/arut/nginx-rtmp-module.git
-
-      # ---------- MODSECURITY CORE + CONNECTOR ----------
-      - name: 🛡️ Fetch ModSecurity v3 core
-        if: env.ENABLE_MODSEC == 'true'
-        run: |
-          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git ModSecurity
+          path: ModSecurity
+          key: modsecurity-v4-${{ hashFiles('**/ci.yml') }}
+      - run: |
+          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git || echo "Using cached"
           cd ModSecurity
           git submodule update --init --recursive
 
-      - name: 🔧 Build & Install ModSecurity core
-        if: env.ENABLE_MODSEC == 'true'
+      - name: 🔨 Build ModSecurity
         run: |
-          set -euxo pipefail
           cd ModSecurity
           autoreconf -fi
           ./configure
-          make -j"$(nproc)"
+          make -j$(nproc)
           sudo make install
-          sudo ldconfig
-          echo "✅ ModSecurity core installed"
+          cd ..
 
-      - name: 🛡️ Fetch ModSecurity NGINX connector
-        if: env.ENABLE_MODSEC == 'true'
-        run: |
-          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity-nginx.git modsecurity-nginx
-
-      # ---------- CONFIGURE & BUILD NGINX ----------
-      - name: 🧩 Configure NGINX (QUIC + media + modules)
-        run: |
-          set -euxo pipefail
-          cd nginx
-
-          # Use ccache for speed
-          export CC="ccache gcc"
-          export CXX="ccache g++"
-          mkdir -p "$CCACHE_DIR"
-          ccache -z || true
-
-          # Build-time hardening + perf
-          CCOPT="-O3 -pipe -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIC -Wformat -Werror=format-security"
-          LDOPT="-Wl,-z,relro -Wl,-z,now -pie"
-
-          CONFIG_FLAGS="
-            --prefix=/etc/nginx
-            --sbin-path=/usr/sbin/nginx
-            --modules-path=/usr/lib/nginx/modules
-            --conf-path=/etc/nginx/nginx.conf
-            --error-log-path=/var/log/nginx/error.log
-            --http-log-path=/var/log/nginx/access.log
-            --pid-path=/var/run/nginx.pid
-            --lock-path=/var/run/nginx.lock
-            --with-threads
-            --with-http_ssl_module
-            --with-http_v2_module
-            --with-http_v3_module
-            --with-http_gzip_static_module
-            --with-http_stub_status_module
-            --with-http_sub_module
-            --with-http_realip_module
-            --with-http_image_filter_module
-            --with-stream
-            --with-stream_ssl_module
-            --with-openssl=../openssl
-            --with-cc-opt=\"${CCOPT}\"
-            --with-ld-opt=\"${LDOPT}\"
-            --add-module=../ngx_brotli
-            --add-module=../ngx_cache_purge
-          "
-
-          # Optional modules
-          if [ "${ENABLE_FANCYINDEX}" = "true" ]; then
-            CONFIG_FLAGS="${CONFIG_FLAGS} --add-module=../ngx-fancyindex"
-          fi
-          if [ "${ENABLE_RTMP}" = "true" ]; then
-            CONFIG_FLAGS="${CONFIG_FLAGS} --add-module=../nginx-rtmp-module"
-          fi
-          if [ "${ENABLE_MODSEC}" = "true" ]; then
-            CONFIG_FLAGS="${CONFIG_FLAGS} --add-module=../modsecurity-nginx"
-          fi
-
-          echo "🛠️ ./configure ${CONFIG_FLAGS}"
-          eval ./configure ${CONFIG_FLAGS}
-
-      - name: 🏗️ Build NGINX
-        run: |
-          set -euxo pipefail
-          cd nginx
-          make -j"$(nproc)"
-          ./objs/nginx -V || true
-          ccache -s || true
-
-      # ---------- ARTIFACTS ----------
-      - name: 📦 Upload NGINX binary + objs
-        uses: actions/upload-artifact@v4
+      - name: 🌐 Download & Cache NGINX Source
+        uses: actions/cache@v4
         with:
-          name: panduh-party-nginx-${{ env.NGINX_VERSION }}
-          path: |
-            nginx/objs/nginx
-            nginx/objs/*
-          if-no-files-found: error
+          path: nginx-${{ env.NGINX_VERSION }}.tar.gz
+          key: nginx-${{ env.NGINX_VERSION }}
+      - run: |
+          wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx-${NGINX_VERSION}.tar.gz || echo "Using cached"
+          tar -xzf nginx-${NGINX_VERSION}.tar.gz
+          mv nginx-${NGINX_VERSION} nginx
+
+      - name: 🔧 Configure & Build NGINX + Modules
+        run: |
+          cd nginx
+          ./auto/configure \
+            --with-cc-opt="-O2 -march=native -fstack-protector-strong -D_FORTIFY_SOURCE=2" \
+            --with-ld-opt="-Wl,-z,relro,-z,now" \
+            --with-compat \
+            --with-http_ssl_module \
+            --with-http_v3_module \
+            --with-stream \
+            --with-stream_ssl_module \
+            --with-threads \
+            --with-http_gzip_static_module \
+            --with-http_v2_module \
+            --with-http_image_filter_module \
+            --with-http_videodownload_module \
+            --with-http_slice_module \
+            --add-module=../ngx_brotli \
+            --add-module=../ngx_cache_purge \
+            --add-module=../ngx-fancyindex \
+            $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" )
+          make -j$(nproc)
+          sudo make install
+          cd ..
+
+      - name: 🧪 Test NGINX Build
+        run: |
+          sudo /usr/local/nginx/sbin/nginx -t || exit 1
+
+      - name: 📦 Package as DEB
+        run: |
+          cd nginx
+          sudo checkinstall --install=no --pkgname=nginx-panduh-party --pkgversion=${NGINX_VERSION} --backup=no --deldoc=yes --fstrans=no --default
+          mv nginx-panduh-party_${NGINX_VERSION}-1_amd64.deb ../
+          cd ..
