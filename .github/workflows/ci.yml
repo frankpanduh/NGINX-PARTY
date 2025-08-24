@@ -25,7 +25,7 @@ jobs:
           sudo apt-get install -y \
             build-essential git curl wget ca-certificates unzip pkg-config checkinstall \
             libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev libmaxminddb0 libmaxminddb-dev mmdb-bin \
-            libzstd-dev autoconf automake libtool doxygen libxml2 libxml2-dev libyajl-dev libgeoip-dev liblmdb-dev \
+            libzstd-dev libbrotli-dev autoconf automake libtool doxygen libxml2 libxml2-dev libyajl-dev libgeoip-dev liblmdb-dev \
             libfuzzy-dev libcurl4-openssl-dev liblua5.3-dev cmake
 
       - name: Download OpenSSL 🛡
@@ -43,16 +43,16 @@ jobs:
 
       - name: Clone third-party modules 🧩
         run: |
+          # Brotli
           git clone --depth 1 https://github.com/google/ngx_brotli.git
           cd ngx_brotli
           git submodule update --init --recursive
-          # Build Brotli library for NGINX
-          mkdir -p deps/brotli/out
-          cd deps/brotli
-          cmake -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release -B out
-          cmake --build out
-          cd ../../
+          cd ..
+
+          # Zstd
           git clone --depth 1 https://github.com/tokers/zstd-nginx-module.git
+
+          # Other modules
           git clone --depth 1 https://github.com/leev/ngx_http_geoip2_module.git
           git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git
           git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
@@ -61,7 +61,7 @@ jobs:
       - name: Build ModSecurity v3 🛡️
         if: env.ENABLE_MODSEC == 'true'
         run: |
-          git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity.git
+          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
           cd ModSecurity
           git submodule update --init --recursive
           ./build.sh
@@ -70,12 +70,7 @@ jobs:
           sudo make install
           sudo ldconfig
           cd ..
-          git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity-nginx.git
-          # Copy starter pack rules from /extras if present
-          if [ -d ../extras/modsec-starter-pack/rules ]; then
-            sudo cp ../extras/modsec-starter-pack/rules/*.conf /etc/modsecurity/rules/
-            sudo cp ../extras/modsec-starter-pack/modsecurity.conf /etc/modsecurity/modsecurity.conf
-          fi
+          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity-nginx.git
 
       - name: Configure & Build NGINX ⚡
         run: |
@@ -114,7 +109,7 @@ jobs:
           fi
           ./auto/configure ${CONFIG_ARGS} \
             --with-cc-opt='-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security' \
-            --with-ld-opt='-Wl,-z,relro,-z,now -L/usr/local/lib -L../ngx_brotli/deps/brotli/out'
+            --with-ld-opt='-Wl,-z,relro,-z,now -L/usr/local/lib'
           make -j"$(nproc)"
 
       - name: Package .deb with checkinstall 📦
