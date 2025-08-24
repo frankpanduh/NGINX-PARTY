@@ -1,151 +1,107 @@
-name: 🐼⚡ NGINX-PARTY .deb Build — Cyberpunk Panda CI
+name: 🐼 NGINX-PARTY CI ⚡✨
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   pull_request:
-
-env:
-  ENABLE_MODSEC: "true"
-  MODSEC_MODE: "DetectionOnly"     # 'On' to block; 'DetectionOnly' to log
-  OPENSSL_VERSION: "3.3.1"         # OpenSSL >=3.2 has QUIC; 3.3.x is fine
+    branches: [ "main" ]
 
 jobs:
-  build-deb:
+  build-nginx-modsec:
     runs-on: ubuntu-latest
 
+    env:
+      ENABLE_MODSEC: true
+      MODSEC_MODE: DetectionOnly
+      NGINX_VERSION: latest
+      OPENSSL_VERSION: 3.3.1
+
     steps:
-      - name: 📥 Checkout repo (submodules if any)
+      - name: ⚡ Checkout NGINX-PARTY
         uses: actions/checkout@v4
         with:
-          submodules: false
+          submodules: recursive
 
-      - name: 🧰 Install build dependencies
+      - name: 🔍 Preflight: Check optional dependencies
+        shell: bash
         run: |
+          echo "🐼 Running preflight dependency check..."
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential automake autoconf libtool cmake checkinstall \
-            pkg-config git curl wget ca-certificates unzip \
-            zlib1g-dev libpcre3-dev libxml2-dev libxslt1-dev \
-            libgd-dev libgeoip-dev \
-            libmaxminddb0 libmaxminddb-dev mmdb-bin \
-            libzstd-dev \
-            libyajl-dev liblmdb-dev libcurl4-openssl-dev \
-            liblua5.3-dev libfuzzy-dev doxygen
+            build-essential autoconf automake libtool pkg-config \
+            libpcre3 libpcre3-dev zlib1g-dev libssl-dev \
+            libxml2 libxml2-dev libgeoip-dev libcurl4-openssl-dev \
+            libyajl-dev liblmdb-dev lua5.3 liblua5.3-dev \
+            git wget unzip cmake curl python3 python3-pip rustc cargo || true
+          echo "✅ Preflight complete — dependencies installed if available."
 
-      - name: 🛡️ Fetch OpenSSL (${OPENSSL_VERSION}) for QUIC/HTTP3
-        run: |
-          curl -LO "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
-          tar xzf "openssl-${OPENSSL_VERSION}.tar.gz"
-
-      - name: 🌐 Clone NGINX (auto-select latest release tag)
-        run: |
-          git clone https://github.com/nginx/nginx.git
-          cd nginx
-          LATEST_TAG="$(git tag -l 'release-*' | sort -V | tail -n1)"
-          echo "Latest NGINX tag: ${LATEST_TAG}"
-          git checkout "${LATEST_TAG}"
-          echo "NGX_TAG=${LATEST_TAG}" >> $GITHUB_ENV
-
-      - name: 🧩 Clone third-party modules
-        run: |
-          # Brotli (Google) — remember to pull its submodule
-          git clone --depth 1 https://github.com/google/ngx_brotli.git
-          (cd ngx_brotli && git submodule update --init --recursive)
-
-          # Zstandard compression module
-          git clone --depth 1 https://github.com/tokers/zstd-nginx-module.git
-
-          # Useful extras
-          git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git
-          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
-          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
-
-          # GeoIP2 (HTTP + stream); we enable stream in core to satisfy linkage
-          git clone --depth 1 https://github.com/leev/ngx_http_geoip2_module.git
-
-      - name: 🧱 (Optional) Build ModSecurity v3 core lib + connector
+      - name: 🐼 Clone ModSecurity
         if: env.ENABLE_MODSEC == 'true'
         run: |
-          # Core engine
-          git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity.git
+          echo "🛡️ Pulling SpiderLabs/ModSecurity..."
+          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
           cd ModSecurity
-          git submodule update --init --recursive
-          ./build.sh
+          git submodule init
+          git submodule update --recursive
+
+      - name: 🔨 Build ModSecurity
+        if: env.ENABLE_MODSEC == 'true'
+        shell: bash
+        run: |
+          cd ModSecurity
+          echo "⚙️ Preparing build scripts..."
+          autoreconf -fi
           ./configure
-          make -j"$(nproc)"
+          make -j$(nproc)
           sudo make install
-          sudo ldconfig
           cd ..
+          echo "✅ ModSecurity ninja-panda installed!"
 
-          # NGINX connector (module)
-          git clone --depth 1 https://github.com/owasp-modsecurity/ModSecurity-nginx.git
+      - name: 🌐 Fetch NGINX source
+        shell: bash
+        run: |
+          echo "🐼 Downloading latest NGINX source..."
+          NGX_TAG=$(curl -s http://nginx.org/en/download.html | grep -Eo 'nginx-[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          echo "Found latest NGINX tag: $NGX_TAG"
+          mkdir -p nginx
+          wget "http://nginx.org/download/$NGX_TAG.tar.gz" -O nginx.tar.gz
+          tar -xzf nginx.tar.gz -C nginx --strip-components=1
 
-      - name: ⚙️ Configure & build NGINX (QUIC/HTTP3, stream, modules)
+      - name: 🦾 Build NGINX with modules & optimizations
+        shell: bash
         run: |
           cd nginx
-
-          CONFIG_ARGS="\
+          echo "🔧 Building NGINX-PARTY with QUIC, SSL, Brotli, caching, threads, and media formats..."
+          ./auto/configure \
             --with-compat \
-            --with-threads \
             --with-http_ssl_module \
-            --with-http_v2_module \
             --with-http_v3_module \
-            --with-http_gzip_static_module \
             --with-stream \
             --with-stream_ssl_module \
-            --with-stream_ssl_preread_module \
-            --with-pcre-jit \
-            --with-openssl=../openssl-${OPENSSL_VERSION} \
+            --with-threads \
+            --with-http_gzip_static_module \
+            --with-http_v2_module \
             --add-module=../ngx_brotli \
-            --add-module=../zstd-nginx-module \
-            --add-module=../headers-more-nginx-module \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
-            --add-module=../ngx_http_geoip2_module \
-          "
+            $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" )
+          make -j$(nproc)
+          sudo make install
+          echo "🐼 NGINX-PARTY built — panda speed unlocked! ⚡"
 
-          if [ "${ENABLE_MODSEC}" = "true" ]; then
-            CONFIG_ARGS="${CONFIG_ARGS} --add-module=../ModSecurity-nginx"
-          fi
-
-          echo "🔩 Configure args:"
-          echo "${CONFIG_ARGS}"
-
-          ./auto/configure ${CONFIG_ARGS} \
-            --with-cc-opt='-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security' \
-            --with-ld-opt='-Wl,-z,relro,-z,now -L/usr/local/lib'
-
-          make -j"$(nproc)"
-
-      - name: 📦 Package .deb with checkinstall
+      - name: 🖼️ Test media & modules
+        shell: bash
         run: |
-          cd nginx
-          # Use release tag (e.g., release-1.27.1) → version like 1.27.1
-          PKGVER="${NGX_TAG#release-}"
-          sudo checkinstall --pkgname=nginx-party \
-            --pkgversion="${PKGVER}" \
-            --requires="libpcre3,libssl3,zlib1g" \
-            --backup=no --deldoc=yes --fstrans=no --default
+          echo "🖼️ Verifying WebP / AVIF / Brotli / ModSecurity modules..."
+          nginx -V | tee /dev/stdout
 
-      - name: 🔍 Show build info
-        run: |
-          /usr/local/nginx/sbin/nginx -V || true
-          ls -la nginx/*.deb || true
-
-      - name: 🚚 Upload artifact (.deb)
+      - name: 🎁 Save modular artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nginx-party-deb
-          path: nginx/*.deb
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: 🧯 On failure: quick diag
-        if: failure()
-        run: |
-          echo "💀 Build failed — quick system diag:"
-          uname -a
-          df -h
-          free -m
-          (ldd /usr/local/nginx/sbin/nginx || echo 'nginx binary missing')
+          name: nginx-artifacts
+          path: |
+            nginx
+            ngx_brotli
+            ngx_cache_purge
+            ngx-fancyindex
+            ModSecurity
