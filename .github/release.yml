@@ -1,17 +1,16 @@
 name: 🛰️ Release NGINX-PARTY
 
 on:
-  push:
-    tags:
-      - "nginx-party-v*"
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["⚡ CI - Build & Test NGINX-PARTY"]
+    types:
+      - completed
 
 jobs:
   release:
-    name: 🚀 Release NGINX-PARTY
+    name: 🛰️ Publish Release
     runs-on: ubuntu-latest
-    needs: build
-
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
@@ -19,13 +18,6 @@ jobs:
       - name: 📤 Upload Release Artifacts
         uses: softprops/action-gh-release@v1
         with:
-          files: 'deb/nginx-party/nginx-party_*.tar.gz'
+          files: '*.deb'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 📦 Push Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/nginx-party:stable

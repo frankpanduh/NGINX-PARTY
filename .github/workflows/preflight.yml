@@ -7,13 +7,13 @@ on:
 
 jobs:
   preflight:
-    name: ⚡ Preflight - NGINX & ModSecurity
+    name: 💻 Preflight - NGINX & ModSecurity
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 🐧 Install Dependencies
+      - name: 💻 Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
@@ -21,7 +21,7 @@ jobs:
             libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libtool automake \
             libyajl-dev liblmdb-dev libluajit-5.1-dev \
             php8.4-cli php8.4-fpm mariadb-client composer redis-server \
-            ccache unzip tar autoconf automake pkg-config libtool
+            ccache unzip tar fpm
           sudo rm -rf /var/lib/apt/lists/*
 
       - name: 🔧 Confirm Build Tools
