@@ -1,4 +1,4 @@
-name: 🛠️ Build NGINX-PARTY (Secure & Optimized)
+name: 🛠️ CI - Build NGINX-PARTY
 
 on:
   push:
@@ -13,13 +13,13 @@ env:
 
 jobs:
   build:
-    name: 🛠️ Secure Build NGINX + Modules
+    name: ⚡ Build NGINX + Modules
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 🐧 Install Build Dependencies
+      - name: 💻 Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
@@ -28,38 +28,89 @@ jobs:
             libyajl-dev liblmdb-dev libluajit-5.1-dev \
             php8.3-cli php8.3-fpm mariadb-client composer redis-server \
             ccache unzip tar
+          sudo rm -rf /var/lib/apt/lists/*
 
-      - name: 🐙 Clone NGINX + Modules
+      - name: 🛡️ Soft Preflight - Verify Modules
+        run: |
+          set -e
+          # ModSecurity bootstrap
+          if [ "$ENABLE_MODSEC" == "true" ]; then
+            if [ ! -f "./ModSecurity/nginx/config" ]; then
+              echo "❌ ModSecurity nginx module missing, bootstrapping..."
+              cd ModSecurity
+              git submodule update --init --recursive
+              ./autogen.sh
+              ./configure
+              cd ..
+            fi
+          fi
+          # Brotli check
+          if [ ! -f "./ngx_brotli/deps/brotli/CMakeLists.txt" ]; then
+            echo "❌ Brotli submodule missing or not initialized"
+            exit 1
+          fi
+          echo "✅ Soft preflight completed"
+
+      - name: 🌐 Clone NGINX & Modules
         run: |
           git clone --depth 1 https://github.com/nginx/nginx.git -b release-${NGINX_VERSION} nginx-${NGINX_VERSION}-src
           git clone --depth 1 https://github.com/google/ngx_brotli.git
           git -C ngx_brotli submodule update --init --recursive
           git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
           git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
-          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity --branch v3/master
 
-      - name: 🔧 Configure & Build with Hardened Flags
+      - name: 🔧 Configure & Build NGINX
         run: |
           cd nginx-${NGINX_VERSION}-src
           ./auto/configure \
+            --prefix=/usr/local/nginx \
             --with-compat \
             --with-http_ssl_module \
+            --with-http_v2_module \
             --with-http_v3_module \
             --with-stream \
             --with-stream_ssl_module \
             --with-threads \
             --with-http_gzip_static_module \
-            --with-http_v2_module \
             --with-http_image_filter_module \
-            --with-http_slice_module \
-            --with-http_stub_status_module \
-            --with-cc-opt="-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security" \
-            --with-ld-opt="-Wl,-z,relro,-z,now" \
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
-            $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx" )
+            $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" ) \
+            --with-http_secure_link_module \
+            --with-http_realip_module \
+            --with-http_slice_module \
+            --with-http_stub_status_module \
+            --with-http_auth_request_module \
+            --with-file-aio
           make -j$(nproc)
           sudo make install
           cd ..
-          echo "🚀 Secure NGINX + Modules Build Complete!"
+          echo "🚀 NGINX-PARTY build complete"
+
+      - name: 📦 Package DEB
+        run: |
+          # Simple example, adjust paths as needed
+          mkdir -p nginx-deb/DEBIAN
+          echo "Package: nginx-party
+Version: ${NGINX_VERSION}
+Architecture: amd64
+Maintainer: Frank Panduh <you@example.com>
+Description: Custom NGINX-PARTY build with modules
+" > nginx-deb/DEBIAN/control
+          dpkg-deb --build nginx-deb
+
+      - name: 📤 Upload Release Artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          files: 'nginx-deb.deb'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📦 Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/nginx-party:stable

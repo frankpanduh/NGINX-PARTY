@@ -1,17 +1,16 @@
-name: 💻 Preflight Checks & Dependencies
+name: 💻 Preflight Checks
 
 on:
   workflow_dispatch:
 
 jobs:
   preflight:
-    name: 💻 Preflight - Build Tools & Dependencies
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 💻 Install Build Dependencies
+      - name: 💻 Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
@@ -22,9 +21,11 @@ jobs:
             ccache unzip tar
           sudo rm -rf /var/lib/apt/lists/*
 
-      - name: 🔧 Confirm Installed Tools
+      - name: 🛡️ Verify Modules
         run: |
-          gcc --version
-          make --version
-          php -v
-          redis-server --version
+          echo "Checking for required modules..."
+          [[ -d ./ngx_brotli ]] || echo "❌ ngx_brotli missing"
+          [[ -d ./ngx_cache_purge ]] || echo "❌ ngx_cache_purge missing"
+          [[ -d ./ngx-fancyindex ]] || echo "❌ ngx-fancyindex missing"
+          [[ -d ./ModSecurity/nginx ]] || echo "❌ ModSecurity/nginx missing"
+          echo "✅ Preflight done"

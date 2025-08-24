@@ -1,15 +1,11 @@
-name: 🐳 Build Docker Image - NGINX-PARTY
+name: 🐳 Docker Build
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
-  docker-build:
-    name: 🐳 Build & Push Docker
+  build:
     runs-on: ubuntu-latest
-    needs: build
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
@@ -20,4 +16,3 @@ jobs:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
