@@ -1,33 +1,25 @@
-name: 🛠️ PANDUH-PARTY (Build NGINX 1.29.1 Stable + QUIC + Mods) ⚡🌐🕶️
+name: 🛠️ PANDUH-PARTY CI (Stable NGINX + QUIC + Mods) 🌐🚀
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
   pull_request:
-    branches: ["main"]
-  workflow_dispatch:
+    branches: [ "main" ]
+
+env:
+  ENABLE_MODSEC: true
+  MODSEC_MODE: DetectionOnly
+  NGINX_VERSION: 1.29.1
+  OPENSSL_VERSION: 3.3.1
 
 jobs:
   build-nginx-modsec:
     runs-on: ubuntu-latest
-    env:
-      ENABLE_MODSEC: true
-      MODSEC_MODE: DetectionOnly
-      NGINX_VERSION: 1.29.1
-      OPENSSL_VERSION: 3.3.1
-
     steps:
-      - name: 🐼 Checkout repo
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      # ===== Cache apt packages =====
-      - name: 💾 Cache APT packages
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-${{ hashFiles('**/ci.yml') }}
 
       - name: 🛠️ Install dependencies
         run: |
@@ -35,29 +27,16 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             build-essential autoconf automake libtool pkg-config \
             libpcre3 libpcre3-dev libxml2 libxml2-dev libcurl4-openssl-dev \
-            libyajl-dev liblmdb-dev lua5.3 liblua5.3-dev libgeoip-dev git wget unzip zlib1g-dev rustc cargo
+            libyajl-dev liblmdb-dev lua5.3 liblua5.3-dev libgeoip-dev \
+            git wget unzip zlib1g-dev ccache rustc cargo
           sudo rm -rf /var/lib/apt/lists/*
 
-      # ===== Cache ModSecurity source =====
-      - name: 💾 Cache ModSecurity
-        uses: actions/cache@v4
-        with:
-          path: ModSecurity
-          key: modsec-${{ hashFiles('**/ci.yml') }}
-
       - name: 🐼 Clone ModSecurity
-        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
           cd ModSecurity
           git submodule init
           git submodule update --recursive
-          cd ..
-
-      # ===== Build ModSecurity =====
-      - name: 🔨 Build ModSecurity
-        run: |
-          cd ModSecurity
           autoreconf -fi
           ./configure
           make -j$(nproc)
@@ -65,22 +44,18 @@ jobs:
           cd ..
           echo "✅ ModSecurity installed!"
 
-      # ===== Cache NGINX source =====
-      - name: 💾 Cache NGINX source
-        uses: actions/cache@v4
-        with:
-          path: nginx-${{ env.NGINX_VERSION }}
-          key: nginx-src-${{ env.NGINX_VERSION }}
-
       - name: 🌐 Download & extract NGINX source
-        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           echo "Fetching NGINX ${NGINX_VERSION} source..."
           wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx-${NGINX_VERSION}.tar.gz
           tar -xzf nginx-${NGINX_VERSION}.tar.gz
+          if [ ! -d "nginx-${NGINX_VERSION}" ]; then
+            echo "❌ Extraction failed: nginx-${NGINX_VERSION} not found!"
+            exit 1
+          fi
           mv nginx-${NGINX_VERSION} nginx-${NGINX_VERSION}-src
+          echo "✅ NGINX source ready at nginx-${NGINX_VERSION}-src"
 
-      # ===== Configure & Build NGINX =====
       - name: 🔧 Configure & Build NGINX with modules
         run: |
           cd nginx-${NGINX_VERSION}-src
@@ -99,6 +74,7 @@ jobs:
             --with-http_v2_module \
             --with-http_image_filter_module \
             --with-http_websocket_module \
+            --with-http_videostream_module \
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
@@ -107,10 +83,3 @@ jobs:
           sudo make install
           cd ..
           echo "🚀 NGINX + ModSecurity build complete — panda style!"
-
-      # ===== Cache compiled outputs (optional, ccache for future) =====
-      - name: 💾 Cache NGINX build outputs
-        uses: actions/cache@v4
-        with:
-          path: /usr/local/nginx
-          key: nginx-build-${{ env.NGINX_VERSION }}

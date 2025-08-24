@@ -1,34 +1,26 @@
-name: 🛠️ PANDUH-PARTY Preflight ⚡🌐🕶️
+name: ⚡ NGINX-PARTY Preflight Check 🛠️
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
-  check-dependencies:
+  preflight:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 🐼 Checkout repo
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: 🔍 Check system dependencies
+      - name: 🧪 Verify environment
         run: |
-          echo "Checking mandatory tools..."
-          command -v gcc || { echo "gcc missing"; exit 1; }
-          command -v make || { echo "make missing"; exit 1; }
-          command -v git || { echo "git missing"; exit 1; }
-          command -v wget || { echo "wget missing"; exit 1; }
-          command -v rustc || { echo "rustc missing"; exit 1; }
-          command -v cargo || { echo "cargo missing"; exit 1; }
-
-      - name: 💾 Check NGINX source
-        run: |
-          if [ ! -f "nginx-${{ env.NGINX_VERSION }}/auto/configure" ]; then
-            echo "❌ NGINX configure script missing!"
-            exit 1
-          fi
-
-      - name: ✅ Preflight checks complete
-        run: echo "All required dependencies and sources are ready!"
+          echo "Checking required tools..."
+          which gcc make cmake curl git wget || { echo "Missing build tools!"; exit 1; }
+          gcc --version
+          make --version
+          git --version
+          curl --version
+          wget --version

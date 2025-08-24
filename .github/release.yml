@@ -1,60 +1,37 @@
-name: 🎉 PANDUH-PARTY Release ⚡🌐🕶️
+name: 🏷️ NGINX-PARTY Release 🚀
 
 on:
   push:
     tags:
       - 'nginx-party-stable-v*'
-  workflow_dispatch:
 
 jobs:
   release:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 🐼 Checkout repo
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: 💾 Restore NGINX build cache
-        uses: actions/cache@v4
-        with:
-          path: /usr/local/nginx
-          key: nginx-build-${{ env.NGINX_VERSION }}
-
-      - name: 📦 Package NGINX as DEB
+      - name: 🛠️ Build release notes
         run: |
-          cd packaging
-          ./build-deb.sh
-          cd ..
+          echo "Generating release notes..."
+          git log --pretty=format:"- %s" $(git describe --tags --abbrev=0)..HEAD > release_notes.md
+          echo "✅ Release notes generated"
 
-      - name: 🐳 Build Docker image
-        run: |
-          docker build \
-            --build-arg NGINX_PATH=/usr/local/nginx \
-            -t ${{ secrets.DOCKER_HUB_USER }}/nginx-party:${GITHUB_REF_NAME} \
-            -t ghcr.io/${{ github.repository }}/nginx-party:${GITHUB_REF_NAME} \
-            .
+      - name: 🐳 Build Docker release
+        run: docker build -t nginx-party-stable:${GITHUB_REF##*/} .
 
-      - name: 🚀 Push Docker images
-        run: |
-          docker push ${{ secrets.DOCKER_HUB_USER }}/nginx-party:${GITHUB_REF_NAME}
-          docker push ghcr.io/${{ github.repository }}/nginx-party:${GITHUB_REF_NAME}
+      - name: 🚀 Push Docker & GHCR release
         env:
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_TOKEN }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_USER }}
-          CR_PAT: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 📝 Create Release Notes
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: NGINX-PARTY Release ${{ github.ref_name }}
-          body: |
-            Stable NGINX-PARTY build with:
-            - NGINX 1.29.1
-            - QUIC + HTTP/3
-            - ModSecurity
-            - Brotli, Cache Purge, FancyIndex
-            - AVIF/WEBP, WebSockets, Rust support
-            - Optimized build flags & security
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+          docker tag nginx-party-stable:${GITHUB_REF##*/} $DOCKER_USERNAME/nginx-party-stable:${GITHUB_REF##*/}
+          docker push $DOCKER_USERNAME/nginx-party-stable:${GITHUB_REF##*/}
+          echo $GHCR_TOKEN | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
+          docker tag nginx-party-stable:${GITHUB_REF##*/} ghcr.io/${GITHUB_REPOSITORY}:nginx-party-stable-${GITHUB_REF##*/}
+          docker push ghcr.io/${GITHUB_REPOSITORY}:nginx-party-stable-${GITHUB_REF##*/}
