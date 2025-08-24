@@ -1,4 +1,4 @@
-name: 🛠️ Build NGINX-PARTY
+name: ⚡ Build NGINX-PARTY
 
 on:
   push:
@@ -13,8 +13,6 @@ jobs:
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: 🐙 Clone Modules
         run: |
@@ -28,7 +26,7 @@ jobs:
             git -C ModSecurity submodule update --init --recursive
           fi
 
-      - name: ⚡ Configure & Build NGINX
+      - name: ⚙️ Configure & Build NGINX
         run: |
           cd nginx-${NGINX_VERSION}-src
           ./auto/configure \
@@ -48,21 +46,19 @@ jobs:
             --with-http_stub_status_module \
             --with-http_secure_link_module \
             --with-http_realip_module \
-            --with-cc-opt="-O3 -march=native -fstack-protector-strong -D_FORTIFY_SOURCE=2" \
-            --with-ld-opt="-Wl,-O1,--sort-common,--as-needed,-z,relro,-z,now"
+            --with-http_slice_module \
+            --with-http_vhost_traffic_status_module
           make -j$(nproc)
           sudo make install
           cd ..
           echo "🚀 NGINX-PARTY build complete!"
 
-      - name: 📦 Build DEB Package
+      - name: 📦 Package as DEB
         run: |
-          mkdir -p deb
-          cd nginx-${NGINX_VERSION}-src
-          checkinstall --install=no --pkgname=nginx-party --pkgversion=${NGINX_VERSION} --default
-          mv *.deb ../deb/
-          cd ..
-          echo "📦 DEB package ready"
+          fpm -s dir -t deb -n nginx-party -v ${NGINX_VERSION} \
+            --prefix=/usr/local/nginx \
+            -C nginx-${NGINX_VERSION}-src \
+            .
 
     env:
       NGINX_VERSION: 1.29.1
