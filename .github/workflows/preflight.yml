@@ -30,3 +30,4 @@ jobs:
           make --version
           php -v
           redis-server --version
+          ccache --version

@@ -1,28 +1,26 @@
 name: 🐳 Docker Build & Push
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   docker:
+    name: ⚡ Build & Push Docker Image
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout
+      - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 🐧 Build Docker Image
+      - name: 🐳 Build Docker Image
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:stable .
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:latest .
+          docker tag ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:latest ghcr.io/${{ github.repository_owner }}/nginx-party:latest
 
-      - name: 🚀 Push to Docker Hub
+      - name: 🚀 Push to Docker Hub & GHCR
         run: |
-          echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:stable
-
-      - name: 📦 Push to GHCR
-        run: |
-          echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker tag ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:stable ghcr.io/${{ github.repository }}/nginx-party:stable
-          docker push ghcr.io/${{ github.repository }}/nginx-party:stable
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:latest
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+          docker push ghcr.io/${{ github.repository_owner }}/nginx-party:latest

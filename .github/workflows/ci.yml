@@ -1,4 +1,4 @@
-name: 🛠️ Build NGINX-PARTY Stable + QUIC + Mods
+name: 🛠️ Build NGINX (Stable + QUIC + Mods)
 
 on:
   push:
@@ -6,43 +6,28 @@ on:
   workflow_dispatch:
 
 env:
-  NGINX_VERSION: release-1.29.1
+  NGINX_VERSION: 1.29.1
   OPENSSL_VERSION: 3.3.1
   ENABLE_MODSEC: true
   MODSEC_MODE: DetectionOnly
 
 jobs:
   build:
+    name: ⚡ Build NGINX + Modules
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 🌐 Cache Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.ccache
-            nginx-${{ env.NGINX_VERSION }}-src
-          key: nginx-${{ env.NGINX_VERSION }}-${{ hashFiles('**/ci.yml') }}
-
-      - name: 🐧 Preflight Dependencies
-        uses: ./.github/workflows/preflight.yml
-
-      - name: 🌊 Clone NGINX Mainline
+      - name: 🌐 Clone NGINX Mainline
         run: |
-          git clone --branch $NGINX_VERSION --depth 1 https://github.com/nginx/nginx.git nginx-${NGINX_VERSION}-src
+          git clone --branch release-${NGINX_VERSION} --depth 1 https://github.com/nginx/nginx.git nginx-${NGINX_VERSION}-src
 
-      - name: 🌟 Clone 3rd Party Modules
+      - name: 📦 Clone Extra Modules
         run: |
-          git clone --depth 1 https://github.com/google/ngx_brotli.git ngx_brotli
-          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git ngx_cache_purge
-          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git ngx-fancyindex
-          git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git headers-more-nginx-module
-          git clone --depth 1 https://github.com/openresty/lua-nginx-module.git lua-nginx-module
-          git clone --depth 1 https://github.com/openresty/redis2-nginx-module.git ngx_http_redis
-          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git ModSecurity
-          cd ModSecurity && git submodule update --init --recursive && cd ..
+          git clone --depth 1 https://github.com/google/ngx_brotli.git
+          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
+          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
 
       - name: 🔧 Configure & Build NGINX
         run: |
@@ -58,28 +43,11 @@ jobs:
             --with-http_v2_module \
             --with-http_image_filter_module \
             --with-http_videostream_module \
-            --with-http_stub_status_module \
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
-            --add-module=../headers-more-nginx-module \
-            --add-module=../lua-nginx-module \
-            --add-module=../ngx_http_redis \
             $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" )
           make -j$(nproc)
           sudo make install
           cd ..
-          echo "🚀 NGINX + Mods + ModSecurity build complete — panda style!"
-
-      - name: 📦 Create DEB Package
-        run: |
-          mkdir -p deb_package/DEBIAN
-          echo "Package: nginx-party" > deb_package/DEBIAN/control
-          echo "Version: 1.29.1" >> deb_package/DEBIAN/control
-          echo "Section: web" >> deb_package/DEBIAN/control
-          echo "Priority: optional" >> deb_package/DEBIAN/control
-          echo "Architecture: amd64" >> deb_package/DEBIAN/control
-          echo "Maintainer: NGINX PARTY <you@example.com>" >> deb_package/DEBIAN/control
-          echo "Description: NGINX-PARTY build with QUIC, AVIF/WEBP, Lua, Brotli, Redis, ModSecurity" >> deb_package/DEBIAN/control
-          sudo cp /usr/local/sbin/nginx deb_package/
-          dpkg-deb --build deb_package
+          echo "🚀 NGINX + Mods Build Complete!"
