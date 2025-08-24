@@ -1,9 +1,10 @@
-name: 🛠️ PANDUH-PARTY CI (Stable + QUIC + Mods)
+name: "🛠️ NGINX-PARTY CI (Stable + QUIC + Mods)"
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main]
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 env:
   NGINX_VERSION: release-1.29.1
@@ -14,30 +15,43 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 🔄 Checkout Repository
+      - name: "🌐 Checkout Repository"
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: 💾 Cache ccache
+      - name: "🧰 Install Dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential libpcre3-dev zlib1g-dev libssl-dev \
+            libxml2-dev libcurl4-openssl-dev libyajl-dev libgeoip-dev \
+            liblua5.3-dev ccache wget git debhelper devscripts dh-make fakeroot
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: "💾 Cache ccache + downloads"
         uses: actions/cache@v4
         with:
-          path: ~/.ccache
-          key: ccache-${{ runner.os }}-${{ env.NGINX_VERSION }}
+          path: |
+            ~/.ccache
+            nginx-${{ env.NGINX_VERSION }}-src
+          key: ${{ runner.os }}-nginx-${{ env.NGINX_VERSION }}-${{ env.OPENSSL_VERSION }}
 
-      - name: 🌐 Clone NGINX Source
+      - name: "🌟 Fetch NGINX Source"
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          echo "Fetching NGINX ${NGINX_VERSION} source..."
-          git clone --branch ${NGINX_VERSION} --depth 1 https://github.com/nginx/nginx.git nginx-${NGINX_VERSION}-src
-          cd nginx-${NGINX_VERSION}-src
-          if [ ! -f "./auto/configure" ]; then
+          echo "Fetching NGINX $NGINX_VERSION source..."
+          wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx-${NGINX_VERSION}.tar.gz
+          tar -xzf nginx-${NGINX_VERSION}.tar.gz
+          mv nginx-${NGINX_VERSION} nginx-${NGINX_VERSION}-src
+          if [ ! -f "nginx-${NGINX_VERSION}-src/auto/configure" ]; then
             echo "❌ nginx/auto/configure missing!"
             exit 1
           fi
-          cd ..
 
-      - name: 📦 Build NGINX + Modules
+      - name: "🛠️ Configure & Build NGINX"
         run: |
           cd nginx-${NGINX_VERSION}-src
           ./auto/configure \
@@ -50,8 +64,8 @@ jobs:
             --with-http_gzip_static_module \
             --with-http_v2_module \
             --with-http_image_filter_module \
-            --with-http_websocket_module \
-            --with-http_videostream_module \
+            --with-http_flv_module \
+            --with-http_mp4_module \
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
@@ -61,9 +75,17 @@ jobs:
           cd ..
           echo "🚀 NGINX + ModSecurity build complete — panda style!"
 
-      - name: 📦 Build DEB Package
+      - name: "📦 Package DEB"
         run: |
           cd nginx-${NGINX_VERSION}-src
-          sudo checkinstall --pkgname=nginx-party --pkgversion=1.29.1 --backup=no --deldoc=yes --fstrans=no --default
+          mkdir -p ../nginx-deb
+          checkinstall --pkgname=nginx-party --pkgversion=$NGINX_VERSION \
+            --install=no --fstrans=yes --default
+          mv *.deb ../nginx-deb/
           cd ..
-          echo "✅ DEB package ready!"
+
+      - name: "📤 Upload DEB Artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nginx-party-deb
+          path: nginx-deb/*.deb
