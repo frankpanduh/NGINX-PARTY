@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  NGINX_VERSION: release-1.29.1
+  NGINX_VERSION: 1.29.1
   OPENSSL_VERSION: 3.3.1
   ENABLE_MODSEC: true
   MODSEC_MODE: DetectionOnly
@@ -31,7 +31,7 @@ jobs:
             liblua5.3-dev ccache wget git debhelper devscripts dh-make fakeroot
           sudo rm -rf /var/lib/apt/lists/*
 
-      - name: "💾 Cache ccache + downloads"
+      - name: "💾 Cache ccache + nginx source"
         uses: actions/cache@v4
         with:
           path: |
@@ -39,13 +39,10 @@ jobs:
             nginx-${{ env.NGINX_VERSION }}-src
           key: ${{ runner.os }}-nginx-${{ env.NGINX_VERSION }}-${{ env.OPENSSL_VERSION }}
 
-      - name: "🌟 Fetch NGINX Source"
+      - name: "🌟 Clone NGINX Source"
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          echo "Fetching NGINX $NGINX_VERSION source..."
-          wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx-${NGINX_VERSION}.tar.gz
-          tar -xzf nginx-${NGINX_VERSION}.tar.gz
-          mv nginx-${NGINX_VERSION} nginx-${NGINX_VERSION}-src
+          git clone --branch release-${NGINX_VERSION} --depth 1 https://github.com/nginx/nginx.git nginx-${NGINX_VERSION}-src
           if [ ! -f "nginx-${NGINX_VERSION}-src/auto/configure" ]; then
             echo "❌ nginx/auto/configure missing!"
             exit 1

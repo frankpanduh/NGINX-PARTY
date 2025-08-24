@@ -1,44 +1,37 @@
-name: 🛠️ PANDUH-PARTY Preflight Checks
+name: "⚡ NGINX-PARTY Preflight Checks 🛡️"
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 🔍 Checkout Repository
+      - name: "🌐 Checkout Repository"
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: 🧰 Install Base Dependencies
+      - name: "🧰 Verify System Dependencies"
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            build-essential \
-            git \
-            curl \
-            wget \
-            ca-certificates \
-            libpcre3-dev \
-            zlib1g-dev \
-            libssl-dev \
-            libxml2-dev \
-            libxslt1-dev \
-            libgeoip-dev \
-            liblua5.3-dev \
-            libcurl4-openssl-dev \
-            libyajl-dev \
-            cmake \
-            pkg-config \
-            ccache \
-            lsb-release \
-            debhelper \
-            dh-autoreconf
-          sudo rm -rf /var/lib/apt/lists/*
+          echo "Checking required tools..."
+          for tool in gcc make git wget tar ccache curl; do
+            if ! command -v $tool &>/dev/null; then
+              echo "❌ Missing $tool"
+              exit 1
+            fi
+            echo "✅ $tool installed"
+          done
 
-      - name: ✅ Preflight Complete
-        run: echo "All dependencies installed and ready 🚀"
+      - name: "📦 Verify Directories & Cache"
+        run: |
+          echo "Checking cache directories..."
+          mkdir -p ~/.ccache
+          echo "✅ Cache directory ready"
+
+      - name: "🔧 Verify NGINX Source Directory"
+        run: |
+          if [ ! -d "nginx-${{ env.NGINX_VERSION }}-src" ]; then
+            echo "⚠️ NGINX source not found, will be cloned in CI."
+          else
+            echo "✅ NGINX source directory exists"
+          fi

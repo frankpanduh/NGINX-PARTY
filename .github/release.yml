@@ -1,33 +1,44 @@
-name: 🎉 PANDUH-PARTY Release
+name: "🚀 NGINX-PARTY Release Automation ✨"
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+  release:
+    types: [created]
+
+env:
+  NGINX_VERSION: 1.29.1
+  IMAGE_NAME: nginx-party
+  DOCKER_HUB_REPO: ${{ secrets.DOCKER_HUB_REPO }}
+  GHCR_REPO: ${{ secrets.GHCR_REPO }}
 
 jobs:
   release:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 🔄 Checkout Repository
+      - name: "🌐 Checkout Repository"
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: 📝 Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: "nginx-party-stable-${{ github.ref_name }} 🚀"
-          body: |
-            Release ${{ github.ref_name }} ready.
-            Includes NGINX 1.29.1 + QUIC + ModSecurity + Brotli + Cache modules.
+      - name: "📝 Generate Release Notes"
+        id: notes
+        run: |
+          echo "Generating release notes..."
+          git log --pretty=format:"- %s" $(git describe --tags --abbrev=0)..HEAD > release_notes.txt
+          cat release_notes.txt
 
-      - name: 📦 Upload DEB Artifact
+      - name: "📦 Upload DEB to Artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: nginx-party-deb
-          path: nginx-*.deb
+          name: nginx-party-deb-${{ env.NGINX_VERSION }}
+          path: nginx-deb/*.deb
 
-      - name: 🐳 Push Docker Images
-        uses: ./.github/workflows/docker.yml
+      - name: "📤 Push Docker Images"
+        run: |
+          docker tag ${IMAGE_NAME}:${NGINX_VERSION} ${DOCKER_HUB_REPO}:${NGINX_VERSION}
+          docker push ${DOCKER_HUB_REPO}:${NGINX_VERSION}
+          docker tag ${IMAGE_NAME}:${NGINX_VERSION} ${GHCR_REPO}:${NGINX_VERSION}
+          docker push ${GHCR_REPO}:${NGINX_VERSION}
+
+      - name: "✨ Release Notes Complete"
+        run: |
+          echo "✅ Release automation finished — enjoy the party 🎉"
