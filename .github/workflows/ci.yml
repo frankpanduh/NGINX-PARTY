@@ -13,7 +13,7 @@ env:
 
 jobs:
   build:
-    name: ⚡ Build NGINX + Modules
+    name: ⚡ Build NGINX-PARTY + Modules
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
@@ -30,11 +30,11 @@ jobs:
             ccache unzip tar
           sudo rm -rf /var/lib/apt/lists/*
 
-      - name: 🛡️ Soft Preflight - Verify Modules
+      - name: 🛡️ Soft Preflight Checks
         run: |
           set -e
-          # ModSecurity bootstrap
-          if [ "$ENABLE_MODSEC" == "true" ]; then
+          # Check ModSecurity
+          if [ "$ENABLE_MODSEC" = "true" ]; then
             if [ ! -f "./ModSecurity/nginx/config" ]; then
               echo "❌ ModSecurity nginx module missing, bootstrapping..."
               cd ModSecurity
@@ -44,7 +44,7 @@ jobs:
               cd ..
             fi
           fi
-          # Brotli check
+          # Check Brotli
           if [ ! -f "./ngx_brotli/deps/brotli/CMakeLists.txt" ]; then
             echo "❌ Brotli submodule missing or not initialized"
             exit 1
@@ -59,7 +59,7 @@ jobs:
           git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
           git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
 
-      - name: 🔧 Configure & Build NGINX
+      - name: 🔧 Configure & Build NGINX-PARTY
         run: |
           cd nginx-${NGINX_VERSION}-src
           ./auto/configure \
@@ -76,7 +76,7 @@ jobs:
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
-            $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" ) \
+            $( [ "$ENABLE_MODSEC" = "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" ) \
             --with-http_secure_link_module \
             --with-http_realip_module \
             --with-http_slice_module \
@@ -86,31 +86,4 @@ jobs:
           make -j$(nproc)
           sudo make install
           cd ..
-          echo "🚀 NGINX-PARTY build complete"
-
-      - name: 📦 Package DEB
-        run: |
-          # Simple example, adjust paths as needed
-          mkdir -p nginx-deb/DEBIAN
-          echo "Package: nginx-party
-Version: ${NGINX_VERSION}
-Architecture: amd64
-Maintainer: Frank Panduh <you@example.com>
-Description: Custom NGINX-PARTY build with modules
-" > nginx-deb/DEBIAN/control
-          dpkg-deb --build nginx-deb
-
-      - name: 📤 Upload Release Artifacts
-        uses: softprops/action-gh-release@v1
-        with:
-          files: 'nginx-deb.deb'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 📦 Push Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
+          echo "🚀 NGINX-PARTY build complete!"
