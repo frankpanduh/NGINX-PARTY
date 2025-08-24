@@ -1,46 +1,31 @@
-name: 🐼 NGINX-PARTY Docker Build & Push
+name: 🐼 NGINX-PARTY Docker Build 🐳
 
 on:
-  workflow_dispatch:
   push:
     branches: [ "main" ]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
-  build-and-push:
+  docker-build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: ⚡ Checkout repo
+      - name: ⚡ Checkout repository
         uses: actions/checkout@v4
 
-      - name: 📦 Build Docker image
+      - name: 🐳 Login to Docker Hub & GitHub Container
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 🔧 Build Docker image
         run: |
-          echo "Building Docker image for NGINX-PARTY..."
           docker build -t nginx-party:latest .
 
-      - name: 🚀 Push to GHCR
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - run: |
-          docker tag nginx-party:latest ghcr.io/${{ github.repository }}/nginx-party:latest
-          docker push ghcr.io/${{ github.repository }}/nginx-party:latest
-          echo "✅ Pushed to GHCR!"
-
-      - name: 🚀 Push to Docker Hub
-        if: secrets.DOCKER_USERNAME && secrets.DOCKER_PASSWORD
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      - run: |
-          if [[ -n "${{ secrets.DOCKER_USERNAME }}" ]]; then
-            docker tag nginx-party:latest ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest
-            docker push ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest
-            echo "✅ Pushed to Docker Hub!"
-          else
-            echo "⚠️ Docker Hub credentials not found; skipping push."
-          fi
+      - name: 🚀 Push to Docker Hub & GHCR
+        run: |
+          docker tag nginx-party:latest ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:latest
+          docker tag nginx-party:latest ghcr.io/${{ github.repository_owner }}/nginx-party:latest
+          docker push ghcr.io/${{ github.repository_owner }}/nginx-party:latest

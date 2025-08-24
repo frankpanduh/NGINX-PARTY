@@ -1,4 +1,4 @@
-name: 🐼 NGINX-PARTY Preflight Check 🔍
+name: 🐼 NGINX-PARTY Preflight Check 🚀
 
 on:
   workflow_dispatch:
@@ -6,29 +6,27 @@ on:
 jobs:
   preflight:
     runs-on: ubuntu-latest
+
     steps:
-      - name: ⚡ Checkout NGINX-PARTY
+      - name: ⚡ Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: 🛠️ Install all optional dependencies
-        shell: bash
+      - name: 🛠️ Check required tools
         run: |
-          echo "🐼 Preflight: installing optional libraries for ModSecurity + NGINX modules..."
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential autoconf automake libtool pkg-config \
-            libpcre3 libpcre3-dev zlib1g-dev libssl-dev \
-            libxml2 libxml2-dev libgeoip-dev libcurl4-openssl-dev \
-            libyajl-dev liblmdb-dev lua5.3 liblua5.3-dev \
-            git wget unzip cmake curl python3 python3-pip rustc cargo || true
-          echo "✅ Preflight complete — dependencies installed if available."
-
-      - name: 🔍 Verify dependencies
-        shell: bash
-        run: |
-          echo "🐼 Checking key libraries..."
-          for lib in pcre zlib ssl xml2 geoip curl yajl lmdb lua; do
-            pkg-config --exists $lib && echo "✔ $lib found" || echo "⚠️ $lib missing"
+          echo "Verifying essential build tools..."
+          for cmd in git cmake make gcc g++ autoreconf pkg-config curl wget; do
+            command -v $cmd >/dev/null 2>&1 || { echo "❌ $cmd missing"; exit 1; }
+            echo "✅ $cmd found"
           done
+
+      - name: 🐼 Check NGINX & ModSecurity sources
+        run: |
+          [ -d "ModSecurity" ] && echo "✅ ModSecurity folder exists" || echo "⚠️ ModSecurity missing"
+          [ -d "nginx" ] && echo "✅ NGINX folder exists" || echo "⚠️ NGINX missing"
+
+      - name: 🔍 System info
+        run: |
+          uname -a
+          lsb_release -a
+          df -h
+          free -m

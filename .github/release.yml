@@ -1,33 +1,34 @@
-name: 🐼 NGINX-PARTY Release Automation
+name: 🐼 NGINX-PARTY Release Builder 🚀
 
 on:
-  workflow_dispatch:
   release:
     types: [published]
 
 jobs:
-  release:
+  build-release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: ⚡ Checkout repo
+      - name: ⚡ Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🎁 Download CI artifacts
+      - name: 🐼 Download artifacts from CI
         uses: actions/download-artifact@v4
         with:
           name: nginx-artifacts
-          path: release/
+          path: ./build
 
-      - name: 🐼 Prepare release package
+      - name: 📦 Package release
         run: |
-          echo "Preparing NGINX-PARTY release tarball..."
-          tar -czf nginx-party-release.tar.gz -C release .
+          VERSION=${GITHUB_REF#refs/tags/}
+          mkdir -p release
+          cp -r build/* release/
+          tar -czvf release/nginx-party-${VERSION}.tar.gz -C release .
 
-      - name: 📦 Upload release to GitHub
+      - name: 🚀 Upload release asset
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: nginx-party-release.tar.gz
-          asset_name: nginx-party-release.tar.gz
+          asset_path: release/nginx-party-${VERSION}.tar.gz
+          asset_name: nginx-party-${VERSION}.tar.gz
           asset_content_type: application/gzip
