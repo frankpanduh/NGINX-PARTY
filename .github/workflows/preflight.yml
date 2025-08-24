@@ -1,37 +1,46 @@
-name: "⚡ NGINX-PARTY Preflight Checks 🛡️"
+name: 🛡️ NGINX-PARTY Preflight (⚡ Validation + Dependencies)
 
 on:
   workflow_dispatch:
+  pull_request:
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
 
     steps:
-      - name: "🌐 Checkout Repository"
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      - name: "🧰 Verify System Dependencies"
+      - name: ⚡ Check system environment
         run: |
-          echo "Checking required tools..."
-          for tool in gcc make git wget tar ccache curl; do
-            if ! command -v $tool &>/dev/null; then
-              echo "❌ Missing $tool"
-              exit 1
-            fi
-            echo "✅ $tool installed"
-          done
+          echo "🖥️ OS Info:"
+          uname -a
+          echo "💾 Disk Usage:"
+          df -h
+          echo "🧰 Installed Packages:"
+          dpkg-query -l | grep -E "build-essential|git|wget|curl|gcc|g++|cmake|libssl"
 
-      - name: "📦 Verify Directories & Cache"
+      - name: 🌐 Verify dependencies for build
         run: |
-          echo "Checking cache directories..."
-          mkdir -p ~/.ccache
-          echo "✅ Cache directory ready"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git wget curl cmake \
+            libpcre3 libpcre3-dev zlib1g zlib1g-dev \
+            libssl-dev libxml2-dev libxslt1-dev libgd-dev \
+            libgeoip-dev libjemalloc-dev libmaxminddb-dev \
+            libtool autoconf automake pkg-config \
+            libyajl-dev liblmdb-dev libcurl4-openssl-dev \
+            python3 python3-pip libluajit-5.1-dev \
+            libbrotli-dev libbrotli1 debhelper dh-make fakeroot
+          echo "✅ Dependencies installed"
 
-      - name: "🔧 Verify NGINX Source Directory"
+      - name: 🧪 Test NGINX source accessibility
         run: |
-          if [ ! -d "nginx-${{ env.NGINX_VERSION }}-src" ]; then
-            echo "⚠️ NGINX source not found, will be cloned in CI."
-          else
-            echo "✅ NGINX source directory exists"
-          fi
+          git ls-remote https://github.com/nginx/nginx.git HEAD
+          echo "✅ NGINX repo reachable"
+
+      - name: 🔧 Validate ModSecurity module
+        run: |
+          git ls-remote https://github.com/SpiderLabs/ModSecurity.git HEAD
+          echo "✅ ModSecurity repo reachable"

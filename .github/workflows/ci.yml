@@ -1,10 +1,10 @@
-name: "🛠️ NGINX-PARTY CI (Stable + QUIC + Mods)"
+name: 🔧 NGINX-PARTY CI (🛠️ Build NGINX 1.29.1 + QUIC + Mods)
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches:
+      - main
+  workflow_dispatch:
 
 env:
   NGINX_VERSION: 1.29.1
@@ -17,40 +17,64 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: "🌐 Checkout Repository"
+      - name: 📥 Checkout repo
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: "🧰 Install Dependencies"
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            build-essential libpcre3-dev zlib1g-dev libssl-dev \
-            libxml2-dev libcurl4-openssl-dev libyajl-dev libgeoip-dev \
-            liblua5.3-dev ccache wget git debhelper devscripts dh-make fakeroot
-          sudo rm -rf /var/lib/apt/lists/*
-
-      - name: "💾 Cache ccache + nginx source"
+      - name: ⚡ Cache apt packages
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.ccache
-            nginx-${{ env.NGINX_VERSION }}-src
-          key: ${{ runner.os }}-nginx-${{ env.NGINX_VERSION }}-${{ env.OPENSSL_VERSION }}
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('**/ci.yml') }}
 
-      - name: "🌟 Clone NGINX Source"
-        if: steps.cache.outputs.cache-hit != 'true'
+      - name: 🌐 Setup dependencies
         run: |
-          git clone --branch release-${NGINX_VERSION} --depth 1 https://github.com/nginx/nginx.git nginx-${NGINX_VERSION}-src
-          if [ ! -f "nginx-${NGINX_VERSION}-src/auto/configure" ]; then
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git wget curl cmake \
+            libpcre3 libpcre3-dev zlib1g zlib1g-dev \
+            libssl-dev libxml2-dev libxslt1-dev libgd-dev \
+            libgeoip-dev libjemalloc-dev libmaxminddb-dev \
+            libtool autoconf automake pkg-config \
+            libyajl-dev liblmdb-dev libcurl4-openssl-dev \
+            python3 python3-pip libluajit-5.1-dev \
+            libbrotli-dev libbrotli1 debhelper dh-make \
+            fakeroot libjemalloc-dev ccache
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: 📥 Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ env.NGINX_VERSION }}-${{ env.OPENSSL_VERSION }}
+
+      - name: 🦾 Clone NGINX source
+        run: |
+          git clone --depth 1 --branch release-${NGINX_VERSION} https://github.com/nginx/nginx.git nginx-${NGINX_VERSION}-src
+
+      - name: 🛠️ Fetch modules
+        run: |
+          git clone --depth 1 https://github.com/google/ngx_brotli.git
+          git submodule update --init --recursive
+          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
+          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
+          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git ModSecurity
+          cd ModSecurity
+          git submodule update --init --recursive
+          git checkout v3/master
+          ./build.sh
+          ./configure
+          make -j$(nproc)
+          cd ..
+
+      - name: 🔧 Build NGINX + modules
+        run: |
+          cd nginx-${NGINX_VERSION}-src
+          if [ ! -f "./auto/configure" ]; then
             echo "❌ nginx/auto/configure missing!"
             exit 1
           fi
-
-      - name: "🛠️ Configure & Build NGINX"
-        run: |
-          cd nginx-${NGINX_VERSION}-src
           ./auto/configure \
             --with-compat \
             --with-http_ssl_module \
@@ -61,8 +85,8 @@ jobs:
             --with-http_gzip_static_module \
             --with-http_v2_module \
             --with-http_image_filter_module \
-            --with-http_flv_module \
-            --with-http_mp4_module \
+            --with-http_websocket_module \
+            --with-http_videostream_module \
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
@@ -72,17 +96,9 @@ jobs:
           cd ..
           echo "🚀 NGINX + ModSecurity build complete — panda style!"
 
-      - name: "📦 Package DEB"
+      - name: 📦 Package .deb
         run: |
           cd nginx-${NGINX_VERSION}-src
-          mkdir -p ../nginx-deb
-          checkinstall --pkgname=nginx-party --pkgversion=$NGINX_VERSION \
-            --install=no --fstrans=yes --default
-          mv *.deb ../nginx-deb/
+          checkinstall -y --pkgname=nginx-party --pkgversion=${NGINX_VERSION} --backup=no \
+            --deldoc=yes --fstrans=no --default
           cd ..
-
-      - name: "📤 Upload DEB Artifact"
-        uses: actions/upload-artifact@v4
-        with:
-          name: nginx-party-deb
-          path: nginx-deb/*.deb

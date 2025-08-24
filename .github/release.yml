@@ -1,44 +1,30 @@
-name: "🚀 NGINX-PARTY Release Automation ✨"
+name: 🚀 NGINX-PARTY Release (🛠️ Stable + QUIC + Mods)
 
 on:
   workflow_dispatch:
-  release:
-    types: [created]
-
-env:
-  NGINX_VERSION: 1.29.1
-  IMAGE_NAME: nginx-party
-  DOCKER_HUB_REPO: ${{ secrets.DOCKER_HUB_REPO }}
-  GHCR_REPO: ${{ secrets.GHCR_REPO }}
 
 jobs:
   release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: "🌐 Checkout Repository"
+      - name: 📥 Checkout repo
         uses: actions/checkout@v4
 
-      - name: "📝 Generate Release Notes"
-        id: notes
-        run: |
-          echo "Generating release notes..."
-          git log --pretty=format:"- %s" $(git describe --tags --abbrev=0)..HEAD > release_notes.txt
-          cat release_notes.txt
-
-      - name: "📦 Upload DEB to Artifacts"
+      - name: 📦 Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nginx-party-deb-${{ env.NGINX_VERSION }}
-          path: nginx-deb/*.deb
+          name: nginx-party-${{ env.NGINX_VERSION }}.deb
+          path: nginx-${{ env.NGINX_VERSION }}-src/*.deb
 
-      - name: "📤 Push Docker Images"
+      - name: 🐳 Build Docker image
         run: |
-          docker tag ${IMAGE_NAME}:${NGINX_VERSION} ${DOCKER_HUB_REPO}:${NGINX_VERSION}
-          docker push ${DOCKER_HUB_REPO}:${NGINX_VERSION}
-          docker tag ${IMAGE_NAME}:${NGINX_VERSION} ${GHCR_REPO}:${NGINX_VERSION}
-          docker push ${GHCR_REPO}:${NGINX_VERSION}
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:${{ env.NGINX_VERSION }} .
+          docker tag ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:${{ env.NGINX_VERSION }} ghcr.io/${{ github.repository_owner }}/nginx-party:${{ env.NGINX_VERSION }}
 
-      - name: "✨ Release Notes Complete"
+      - name: 🚀 Push Docker images
         run: |
-          echo "✅ Release automation finished — enjoy the party 🎉"
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party:${{ env.NGINX_VERSION }}
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+          docker push ghcr.io/${{ github.repository_owner }}/nginx-party:${{ env.NGINX_VERSION }}
