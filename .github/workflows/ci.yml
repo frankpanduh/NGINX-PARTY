@@ -1,4 +1,4 @@
-name: 🛠️ CI - Build NGINX-PARTY
+name: 🛠️ CI Build - NGINX-PARTY
 
 on:
   push:
@@ -9,23 +9,56 @@ jobs:
   build:
     name: ⚡ Build NGINX-PARTY
     runs-on: ubuntu-latest
+
+    env:
+      NGINX_VERSION: 1.29.1
+      OPENSSL_VERSION: 3.3.1
+      ENABLE_MODSEC: true
+      MODSEC_MODE: DetectionOnly
+
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 🐧 Clone Repos
+      - name: 🐧 Install Build Dependencies
         run: |
-          git clone --depth 1 https://github.com/nginx/nginx.git -b release-1.29.1 nginx-1.29.1-src
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential git wget curl libpcre3-dev zlib1g-dev libssl-dev \
+            libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libtool automake \
+            libyajl-dev liblmdb-dev libluajit-5.1-dev \
+            php8.3-cli php8.3-fpm mariadb-client composer redis-server \
+            ccache unzip tar cmake pkg-config
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: 📂 Clone Modules
+        run: |
+          # NGINX source
+          git clone --depth 1 https://github.com/nginx/nginx.git -b release-$NGINX_VERSION nginx-$NGINX_VERSION-src
+
+          # Brotli
           git clone --depth 1 https://github.com/google/ngx_brotli.git
           git -C ngx_brotli submodule update --init --recursive
-          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
-          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
-          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity
-          git -C ModSecurity git submodule update --init --recursive
 
-      - name: 🔧 Configure & Build NGINX-PARTY
+          # Cache Purge
+          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
+
+          # Fancy Index
+          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
+
+          # ModSecurity
+          if [ "$ENABLE_MODSEC" = "true" ]; then
+            git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
+            cd ModSecurity
+            git submodule update --init --recursive
+            ./autogen.sh
+            ./configure
+            cd ..
+          fi
+
+      - name: 🔧 Configure & Build
         run: |
-          cd nginx-1.29.1-src
+          cd nginx-$NGINX_VERSION-src
           ./auto/configure \
             --with-compat \
             --with-http_ssl_module \
@@ -36,19 +69,15 @@ jobs:
             --with-http_gzip_static_module \
             --with-http_v2_module \
             --with-http_image_filter_module \
-            --with-http_sub_module \
-            --with-http_fastcgi_module \
-            --with-http_proxy_module \
-            --with-http_secure_link_module \
-            --with-http_realip_module \
-            --with-http_stub_status_module \
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
             $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" ) \
-            $( [ "$ENABLE_REDIS" == "true" ] && echo "--add-module=../ngx_http_redis2" )
+            --with-openssl=../openssl-$OPENSSL_VERSION \
+            --with-http_vhost_traffic_status_module
           make -j$(nproc)
-          sudo make install
-        env:
-          ENABLE_MODSEC: true
-          ENABLE_REDIS: true
+          sudo checkinstall --pkgname=nginx-party --pkgversion=$NGINX_VERSION --backup=no --deldoc=yes --default
+          cd ..
+
+      - name: ✅ Build Complete
+        run: echo "NGINX-PARTY build finished successfully!"

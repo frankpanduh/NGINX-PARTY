@@ -1,4 +1,4 @@
-name: 🐳 Docker Build & Push
+name: 🐳 Docker Build - NGINX-PARTY
 
 on:
   push:
@@ -7,11 +7,12 @@ on:
 
 jobs:
   docker:
-    name: 🐋 Build & Push Docker
+    name: 🐋 Dockerize
     runs-on: ubuntu-latest
     needs: build
+
     steps:
-      - name: 📥 Checkout Repo
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
       - name: 📦 Build Docker Image

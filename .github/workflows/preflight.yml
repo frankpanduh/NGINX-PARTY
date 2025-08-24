@@ -1,33 +1,38 @@
-name: 💻 Preflight Checks & Dependencies
+name: 💻 Preflight Checks
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
   preflight:
-    name: ⚡ Preflight - NGINX-PARTY
+    name: ⚡ Preflight
     runs-on: ubuntu-latest
+
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 🐧 Install Dependencies
+      - name: 🐧 Install Preflight Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            build-essential git wget curl libpcre3-dev zlib1g-dev libssl-dev \
-            libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libtool automake \
-            libyajl-dev liblmdb-dev libluajit-5.1-dev \
-            php8.3-cli php8.3-fpm mariadb-client composer redis-server \
-            nodejs npm ccache unzip tar cmake
-          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get install -y git build-essential wget curl ccache unzip tar cmake
 
-      - name: 🔧 Confirm Build Tools
+      - name: 🔍 Verify Modules
         run: |
-          gcc --version
-          make --version
-          php -v
-          redis-server --version
-          node -v
+          # ModSecurity
+          if [ "$ENABLE_MODSEC" = "true" ]; then
+            if [ ! -d "./ModSecurity" ]; then
+              echo "❌ ModSecurity repo missing"
+              exit 1
+            fi
+          fi
+
+          # Brotli
+          if [ ! -d "./ngx_brotli/deps/brotli" ]; then
+            echo "❌ Brotli submodule missing or not initialized"
+            exit 1
+          fi
+
+          echo "✅ Soft preflight completed"
+        env:
+          ENABLE_MODSEC: true
