@@ -1,12 +1,14 @@
-name: Build NGINX-PARTY .deb 🚀
+name: 🐼 NGINX-PARTY CI
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches:
+      - main
+  pull_request:
 
 jobs:
-  build:
+  build-nginx:
+    name: 🛠️ Build NGINX & Modules
     runs-on: ubuntu-latest
     env:
       ENABLE_MODSEC: true
@@ -15,70 +17,71 @@ jobs:
       OPENSSL_VERSION: 3.3.1
 
     steps:
-      - name: Checkout repo 📥
-        uses: actions/checkout@v3
+    - name: 📥 Checkout Repo
+      uses: actions/checkout@v4
 
-      - name: Install build dependencies 🛠️
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libpcre3-dev zlib1g-dev libbrotli-dev libssl-dev cmake git wget libmaxminddb-dev libxml2-dev libxslt1-dev pkg-config
+    - name: ⚙️ Setup Build Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential cmake libpcre3-dev zlib1g-dev libssl-dev \
+          libmaxminddb-dev libxml2-dev wget git pkg-config autoconf \
+          automake libtool python3 python3-pip cargo unzip curl lsb-release
 
-      - name: Clone NGINX and modules 📦
-        run: |
-          git clone https://github.com/nginx/nginx.git
-          git clone --depth 1 https://github.com/google/ngx_brotli.git
-          git clone --depth 1 https://github.com/tokers/zstd-nginx-module.git
-          git clone --depth 1 https://github.com/leev/ngx_http_geoip2_module.git
-          git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git
-          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
-          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
+    - name: 🧩 Clone Modules
+      run: |
+        git clone --depth 1 https://github.com/google/ngx_brotli.git
+        cd ngx_brotli && git submodule update --init && cd ..
+        git clone --depth 1 https://github.com/leev/ngx_http_geoip2_module.git
+        git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git
+        git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
+        git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
+        git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
+        git clone --depth 1 https://github.com/SpiderLabs/ModSecurity-nginx.git
 
-      - name: Build Brotli library 🔨
-        run: |
-          cd ngx_brotli/deps/brotli
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON .
-          make
-          sudo make install
-          cd ../../../
+    - name: 🔐 Build ModSecurity
+      run: |
+        cd ModSecurity
+        git submodule init
+        git submodule update
+        ./build.sh
+        sudo make install
+        cd ..
 
-      - name: Build ModSecurity ⚔️
-        if: env.ENABLE_MODSEC == 'true'
-        run: |
-          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
-          cd ModSecurity
-          git submodule init
-          git submodule update
-          ./build.sh
-          ./configure
-          make
-          sudo make install
-          cd ..
+    - name: ⚡ Configure & Build NGINX
+      run: |
+        mkdir -p nginx-build
+        cd nginx-build
+        wget http://nginx.org/download/nginx-${{ env.NGINX_VERSION }}.tar.gz
+        tar xzf nginx-${{ env.NGINX_VERSION }}.tar.gz
+        cd nginx-${{ env.NGINX_VERSION }}
+        ./configure \
+          --with-http_ssl_module \
+          --with-http_v2_module \
+          --with-http_v3_module \
+          --with-stream \
+          --with-http_gzip_static_module \
+          --add-module=../../ngx_brotli \
+          --add-module=../../ngx_http_geoip2_module \
+          --add-module=../../headers-more-nginx-module \
+          --add-module=../../ngx_cache_purge \
+          --add-module=../../ngx-fancyindex \
+          --with-cc-opt='-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2' \
+          --with-ld-opt='-Wl,-z,relro,-z,now -L/usr/local/lib'
+        make -j$(nproc)
+        sudo make install
+        cd ../../
 
-      - name: Configure and build NGINX 🔧
-        run: |
-          cd nginx
-          ./auto/configure \
-            --with-compat \
-            --with-stream \
-            --with-http_ssl_module \
-            --add-dynamic-module=../ngx_brotli \
-            --add-dynamic-module=../zstd-nginx-module \
-            --add-dynamic-module=../ngx_http_geoip2_module \
-            --add-dynamic-module=../headers-more-nginx-module \
-            --add-dynamic-module=../ngx_cache_purge \
-            --add-dynamic-module=../ngx-fancyindex \
-            $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-dynamic-module=../ModSecurity-nginx" )
-          make -j$(nproc)
-          sudo make install
+    - name: 📦 Package Modular Artifacts
+      run: |
+        mkdir -p artifacts
+        cp -r nginx-build/nginx-${{ env.NGINX_VERSION }}/objs artifacts/nginx
+        cp -r ngx_brotli artifacts/ngx_brotli
+        cp -r ngx_http_geoip2_module artifacts/ngx_http_geoip2_module
+        cp -r ModSecurity artifacts/ModSecurity
 
-      - name: Package as .deb 📦
-        run: |
-          # placeholder: adjust packaging commands as needed
-          mkdir -p ./deb
-          echo "NGINX-PARTY built successfully" > ./deb/nginx-party.txt
-
-      - name: Upload .deb artifact 🚀
-        uses: actions/upload-artifact@v4
-        with:
-          name: nginx-party-deb
-          path: ./deb
+    - name: ☁️ Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: nginx-party-modular
+        path: artifacts/
