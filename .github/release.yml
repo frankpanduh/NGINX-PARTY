@@ -1,34 +1,41 @@
-name: 🐼 NGINX-PARTY Release Builder 🚀
+name: 🐼 NGINX-PARTY Release 🎁
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*.*.*'
 
 jobs:
-  build-release:
+  release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: ⚡ Checkout repository
+      - name: ⚡ Checkout repo
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: 🐼 Download artifacts from CI
+      - name: 📦 Download CI artifacts
         uses: actions/download-artifact@v4
         with:
           name: nginx-artifacts
-          path: ./build
+          path: ./artifacts
 
-      - name: 📦 Package release
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          mkdir -p release
-          cp -r build/* release/
-          tar -czvf release/nginx-party-${VERSION}.tar.gz -C release .
+      - name: 📝 Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🚀 Upload release asset
+      - name: 📤 Upload artifacts to release
         uses: actions/upload-release-asset@v1
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: release/nginx-party-${VERSION}.tar.gz
-          asset_name: nginx-party-${VERSION}.tar.gz
+          upload_url: ${{ steps.release.outputs.upload_url }}
+          asset_path: ./artifacts
+          asset_name: nginx-party-artifacts-${{ github.ref_name }}.tar.gz
           asset_content_type: application/gzip
+
+      - name: 🎉 Release complete
+        run: echo "🐼 NGINX-PARTY release created with artifacts!"

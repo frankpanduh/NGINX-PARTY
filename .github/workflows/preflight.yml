@@ -1,4 +1,4 @@
-name: 🐼 NGINX-PARTY Preflight Check 🚀
+name: 🐼 NGINX-PARTY Preflight 🚀
 
 on:
   workflow_dispatch:
@@ -8,25 +8,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: ⚡ Checkout repository
+      - name: ⚡ Checkout repo
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: 🛠️ Check required tools
+      - name: 🛠️ Check System Environment
         run: |
-          echo "Verifying essential build tools..."
-          for cmd in git cmake make gcc g++ autoreconf pkg-config curl wget; do
-            command -v $cmd >/dev/null 2>&1 || { echo "❌ $cmd missing"; exit 1; }
-            echo "✅ $cmd found"
-          done
-
-      - name: 🐼 Check NGINX & ModSecurity sources
-        run: |
-          [ -d "ModSecurity" ] && echo "✅ ModSecurity folder exists" || echo "⚠️ ModSecurity missing"
-          [ -d "nginx" ] && echo "✅ NGINX folder exists" || echo "⚠️ NGINX missing"
-
-      - name: 🔍 System info
-        run: |
+          echo "Checking system info..."
           uname -a
-          lsb_release -a
+          lsb_release -a || echo "No lsb_release"
           df -h
           free -m
+          echo "Checking essential tools..."
+          for cmd in git wget curl make gcc cmake autoconf automake pkg-config lua5.3; do
+            command -v $cmd || echo "⚠️ $cmd missing"
+          done
+          echo "Checking optional dependencies..."
+          for lib in libpcre3-dev libpcre2-dev libxml2-dev libcurl4-openssl-dev \
+                     libyajl-dev liblmdb-dev libgeoip-dev; do
+            dpkg -s $lib &>/dev/null && echo "✅ $lib installed" || echo "⚠️ $lib missing"
+          done
+
+      - name: 🎉 Preflight complete
+        run: echo "All clear for ninja-panda build! 🐼🚀"

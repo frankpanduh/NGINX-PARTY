@@ -1,10 +1,10 @@
-name: 🐼 NGINX-PARTY CI Build ⚡️
+name: 🐼 NGINX-PARTY CI Build 🚀
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build-nginx-modsec:
@@ -13,30 +13,25 @@ jobs:
     env:
       ENABLE_MODSEC: true
       MODSEC_MODE: DetectionOnly
-      NGINX_VERSION: main
+      NGINX_VERSION: 1.27.0   # latest stable, or use 'mainline' if you want bleeding edge
       OPENSSL_VERSION: 3.3.1
 
     steps:
-      - name: ⚡ Checkout repository
+      - name: ⚡ Checkout repo
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: 🛠️ Install build dependencies
+      - name: 🛠️ Install dependencies
         run: |
+          echo "Installing build essentials and ModSecurity deps..."
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential \
-            autoconf automake libtool pkg-config cmake \
-            libpcre3 libpcre3-dev \
-            libxml2 libxml2-dev \
-            libcurl4-openssl-dev \
-            libyajl-dev \
-            liblmdb-dev \
-            lua5.3 liblua5.3-dev \
-            libgeoip-dev \
-            git wget unzip zlib1g-dev \
-            python3 python3-pip
+            build-essential autoconf automake libtool pkg-config cmake \
+            libpcre3 libpcre3-dev libpcre2-dev \
+            libxml2 libxml2-dev libcurl4-openssl-dev \
+            libyajl-dev liblmdb-dev lua5.3 liblua5.3-dev \
+            libgeoip-dev git wget unzip zlib1g-dev curl
 
       - name: 🐼 Clone ModSecurity
         if: env.ENABLE_MODSEC == 'true'
@@ -45,6 +40,7 @@ jobs:
           git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
           cd ModSecurity
           git submodule update --init --recursive
+          cd ..
 
       - name: 🔨 Build ModSecurity
         if: env.ENABLE_MODSEC == 'true'
@@ -58,16 +54,29 @@ jobs:
           cd ..
           echo "✅ ModSecurity ninja-panda installed!"
 
-      - name: 🌐 Clone latest NGINX source
+      - name: 📦 Clone optional NGINX modules
         run: |
-          echo "Cloning latest NGINX source from GitHub..."
-          git clone --depth 1 https://github.com/nginx/nginx.git nginx
+          echo "Cloning optional NGINX modules..."
+          git clone --depth 1 https://github.com/google/ngx_brotli.git
+          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
+          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
+          cd ngx_brotli
+          git submodule update --init --recursive
+          cd ..
 
-      - name: 🔧 Build NGINX with modules and optimizations
+      - name: 🌐 Download & extract NGINX source
+        run: |
+          echo "Fetching NGINX ${NGINX_VERSION} source..."
+          wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx.tar.gz
+          mkdir nginx
+          tar -xzf nginx.tar.gz -C nginx --strip-components=1
+
+      - name: 🔧 Build NGINX with modules & ModSecurity
         run: |
           cd nginx
-          echo "Building NGINX with QUIC, media, SSL, caching, stream, threads..."
+          echo "Configuring NGINX build..."
           ./auto/configure \
+            --with-compat \
             --with-http_ssl_module \
             --with-http_v3_module \
             --with-stream \
@@ -78,23 +87,23 @@ jobs:
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
-            --with-ld-opt="-Wl,-z,relro,-z,now" \
-            --with-http_secure_link_module \
-            --with-http_stub_status_module
+            $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" )
+          echo "Building NGINX..."
           make -j$(nproc)
           sudo make install
-          echo "🚀 NGINX + ModSecurity built — panda speed unlocked!"
+          cd ..
+          echo "🚀 NGINX + ModSecurity build complete — panda style!"
 
-      - name: 🖼️ Test media modules (WebP / AVIF)
-        run: |
-          echo "Optional media module checks..."
-
-      - name: 🔍 Debug info
+      - name: 🔍 Debug Info
         run: |
           nginx -V || echo "⚠️ NGINX binary missing"
-          ldd /usr/local/nginx/sbin/nginx || echo "⚠️ Missing dependencies?"
+          echo "Listing installed libraries for NGINX..."
+          ldd /usr/local/nginx/sbin/nginx || echo "⚠️ NGINX binary missing"
+          uname -a
+          df -h
+          free -m
 
-      - name: 🎁 Save modular artifacts
+      - name: 🎁 Save Modular Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: nginx-artifacts
@@ -103,3 +112,4 @@ jobs:
             ngx_brotli
             ngx_cache_purge
             ngx-fancyindex
+            ModSecurity
