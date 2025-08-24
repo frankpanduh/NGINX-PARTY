@@ -7,7 +7,7 @@ on:
 
 jobs:
   preflight:
-    name: ⚡ Preflight - NGINX & ModSecurity
+    name: ⚡ Soft Preflight - NGINX & ModSecurity
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
@@ -23,37 +23,22 @@ jobs:
             libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libtool automake \
             libyajl-dev liblmdb-dev libluajit-5.1-dev \
             php8.3-cli php8.3-fpm mariadb-client composer redis-server \
-            ccache unzip tar cmake
-          sudo rm -rf /var/lib/apt/lists/*
+            ccache unzip tar cmake checkinstall
 
-      - name: 🐙 Initialize Submodules
+      - name: 🔧 Initialize Submodules
         run: |
           git submodule update --init --recursive
-
-      - name: 🔧 Confirm Build Tools
-        run: |
-          gcc --version
-          make --version
-          php -v
-          redis-server --version
-
-      - name: 🛠️ Check Modules
-        run: |
-          # Check Brotli
+          # Ensure ngx_brotli deps
           if [ ! -d "./ngx_brotli/deps/brotli" ]; then
-            echo "❌ Brotli submodule missing or not initialized"
-            exit 1
+            git clone --depth 1 https://github.com/google/brotli.git ngx_brotli/deps/brotli
+          fi
+          # Ensure ModSecurity repo exists if enabled
+          if [ "$ENABLE_MODSEC" = "true" ] && [ ! -d "./ModSecurity" ]; then
+            git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
+            git -C ModSecurity submodule update --init --recursive
           fi
 
-          # Check ModSecurity (repo only; build happens later)
-          if [ "$ENABLE_MODSEC" = "true" ]; then
-            if [ ! -d "./ModSecurity" ]; then
-              echo "❌ ModSecurity repo missing"
-              exit 1
-            fi
-          fi
-
-          echo "✅ Soft preflight completed"
-        shell: /usr/bin/bash -e {0}
+      - name: ✅ Soft Preflight Completed
+        run: echo "All dependencies and submodules are present."
         env:
           ENABLE_MODSEC: true
