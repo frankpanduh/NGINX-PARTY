@@ -45,8 +45,13 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/google/ngx_brotli.git
           cd ngx_brotli
-          git submodule update --init --recursive   # <-- fixes Brotli dependency
-          cd ..
+          git submodule update --init --recursive
+          # Build Brotli library for NGINX
+          mkdir -p deps/brotli/out
+          cd deps/brotli
+          cmake -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release -B out
+          cmake --build out
+          cd ../../
           git clone --depth 1 https://github.com/tokers/zstd-nginx-module.git
           git clone --depth 1 https://github.com/leev/ngx_http_geoip2_module.git
           git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git
@@ -109,7 +114,7 @@ jobs:
           fi
           ./auto/configure ${CONFIG_ARGS} \
             --with-cc-opt='-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security' \
-            --with-ld-opt='-Wl,-z,relro,-z,now -L/usr/local/lib'
+            --with-ld-opt='-Wl,-z,relro,-z,now -L/usr/local/lib -L../ngx_brotli/deps/brotli/out'
           make -j"$(nproc)"
 
       - name: Package .deb with checkinstall 📦
