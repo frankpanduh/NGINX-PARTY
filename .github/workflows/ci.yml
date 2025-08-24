@@ -23,7 +23,7 @@ jobs:
 
       - name: 🛠 Setup Dependencies
         run: |
-          echo "Installing build tools and dependencies..."
+          echo "💾 Installing build essentials, Rust, Python3, CMake, and ninja-panda powers..."
           sudo apt-get update
           sudo apt-get install -y build-essential cmake libpcre3 libpcre3-dev zlib1g-dev libssl-dev \
             git curl wget autoconf automake libtool pkg-config rustc cargo python3 python3-pip
@@ -31,20 +31,22 @@ jobs:
       - name: 📦 ModSecurity Submodules 🛡️
         if: env.ENABLE_MODSEC == 'true'
         run: |
-          echo "Initializing ModSecurity submodules..."
+          echo "🐼 Cloning ModSecurity dojo..."
+          if [ ! -d "ModSecurity" ]; then
+            git clone --recursive https://github.com/SpiderLabs/ModSecurity.git
+          fi
           cd ModSecurity
-          git submodule init
-          git submodule update --recursive
-          echo "Preparing build scripts..."
+          echo "🛠 Preparing ModSecurity build scripts..."
           autoreconf -fi
           ./configure
           make -j$(nproc)
           sudo make install
           cd ..
+          echo "✅ ModSecurity ninja-panda installed!"
 
       - name: 🐙 Build NGINX
         run: |
-          echo "Building NGINX with media support and QUIC..."
+          echo "🔧 Building NGINX with web media powers, QUIC, SSL, caching, stream, and threads..."
           cd nginx
           ./auto/configure \
             --with-http_ssl_module \
@@ -60,17 +62,30 @@ jobs:
           make -j$(nproc)
           sudo make install
           cd ..
+          echo "🐼 NGINX built and installed — panda speed unlocked!"
 
       - name: 🖼️ Test Media Modules
         run: |
-          echo "Testing WebP / AVIF support..."
-          # placeholder scripts if needed, optional checks
+          echo "🖼️ Checking WebP / AVIF / Brotli support..."
+          nginx -V | grep -E "ngx_http_brotli_module|webp|avif" || echo "⚠️ Some media modules may be missing"
 
-      - name: 🔍 Debug Info
+      - name: 🔍 Debug Info & Build Logs
         run: |
+          echo "🔎 NGINX Version + Modules:"
           nginx -V
-          echo "Listing installed modules and libraries..."
+          echo "📦 Linked libraries:"
           ldd /usr/local/nginx/sbin/nginx
+          echo "📝 NGINX logs (if present):"
+          [ -f /usr/local/nginx/logs/error.log ] && tail -n 20 /usr/local/nginx/logs/error.log || echo "No logs yet"
+
+      - name: 🐞 Optional Debug Hook
+        if: failure()
+        run: |
+          echo "💀 Build failed! Dumping recent sys info for debugging:"
+          uname -a
+          df -h
+          free -m
+          ldd /usr/local/nginx/sbin/nginx || echo "nginx binary missing"
 
       - name: 🎁 Save Modular Artifacts
         uses: actions/upload-artifact@v4
