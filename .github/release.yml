@@ -1,28 +1,30 @@
 name: 🛰️ Release NGINX-PARTY
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   release:
-    name: 📤 Release
+    name: ⚡ Release Artifacts
     runs-on: ubuntu-latest
     needs: build
-
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 📤 Upload DEB
+      - name: 📤 Upload Release Artifacts
         uses: softprops/action-gh-release@v1
         with:
           files: '*.deb'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 📦 Push Docker Image
+      - name: 🐳 Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
