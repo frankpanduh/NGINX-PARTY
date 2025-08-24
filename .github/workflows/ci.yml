@@ -16,20 +16,11 @@ jobs:
 
       - name: 🐙 Clone Nginx & Modules
         run: |
-          # Nginx source
           git clone --depth 1 https://github.com/nginx/nginx.git -b release-${NGINX_VERSION} nginx-${NGINX_VERSION}-src
-
-          # Brotli
           git clone --depth 1 https://github.com/google/ngx_brotli.git
           git -C ngx_brotli submodule update --init --recursive
-
-          # Cache Purge
           git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
-
-          # Fancy Index
           git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
-
-          # ModSecurity (only if enabled)
           if [ "$ENABLE_MODSEC" = "true" ]; then
             git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
             git -C ModSecurity submodule update --init --recursive

@@ -21,7 +21,7 @@ jobs:
             libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libtool automake \
             libyajl-dev liblmdb-dev libluajit-5.1-dev \
             php8.3-cli php8.3-fpm mariadb-client composer redis-server \
-            ccache unzip tar
+            ccache unzip tar cmake
           sudo rm -rf /var/lib/apt/lists/*
 
       - name: 🔧 Confirm Build Tools
@@ -30,4 +30,23 @@ jobs:
           make --version
           php -v
           redis-server --version
-          git --version
+
+      - name: ✅ Soft Preflight Checks
+        run: |
+          set -e
+          # Check Brotli
+          if [ ! -d "./ngx_brotli/deps/brotli" ]; then
+            echo "❌ Brotli submodule missing or not initialized"
+            exit 1
+          fi
+
+          # Check ModSecurity
+          if [ "$ENABLE_MODSEC" = "true" ]; then
+            if [ ! -d "./ModSecurity" ]; then
+              echo "❌ ModSecurity repo missing"
+              exit 1
+            fi
+          fi
+
+    env:
+      ENABLE_MODSEC: true
