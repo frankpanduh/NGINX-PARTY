@@ -7,7 +7,6 @@ on:
 
 jobs:
   docker:
-    name: 🐧 Build & Push Docker Image
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
@@ -15,15 +14,11 @@ jobs:
 
       - name: 🐳 Build Docker Image
         run: |
-          docker build -t ghcr.io/${{ github.repository_owner }}/nginx-party:stable .
+          docker build -t ${{ secrets.DOCKERHUB_USER }}/nginx-party:${{ github.sha }} .
+          docker tag ${{ secrets.DOCKERHUB_USER }}/nginx-party:${{ github.sha }} ${{ secrets.DOCKERHUB_USER }}/nginx-party:latest
 
-      - name: 🔑 Login to GHCR
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 📦 Push to GHCR
+      - name: 🚀 Push Docker Image
         run: |
-          docker push ghcr.io/${{ github.repository_owner }}/nginx-party:stable
+          echo ${{ secrets.DOCKERHUB_PASS }} | docker login -u ${{ secrets.DOCKERHUB_USER }} --password-stdin
+          docker push ${{ secrets.DOCKERHUB_USER }}/nginx-party:${{ github.sha }}
+          docker push ${{ secrets.DOCKERHUB_USER }}/nginx-party:latest

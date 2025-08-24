@@ -1,4 +1,4 @@
-name: 🚀 Release NGINX-PARTY Stable
+name: 🎉 Release NGINX-PARTY
 
 on:
   push:
@@ -8,21 +8,20 @@ on:
 
 jobs:
   release:
-    name: ✨ Build & Release Deb + Docker
     runs-on: ubuntu-latest
-
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 🛠️ Run CI Build
-        uses: ./.github/workflows/ci.yml
+      - name: 📦 Upload .deb to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: '*.deb'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 📦 Package Deb
+      - name: 🐳 Push Docker Image
         run: |
-          mkdir -p dist
-          # Simple deb build placeholder; expand for proper packaging
-          echo "NGINX-PARTY v${GITHUB_REF_NAME}" > dist/nginx-party.txt
-
-      - name: 🐳 Build & Push Docker
-        uses: ./.github/workflows/docker.yml
+          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_PASS }}
+          docker tag nginx-party:latest ${{ secrets.DOCKERHUB_USER }}/nginx-party:${{ github.ref_name }}
+          docker push ${{ secrets.DOCKERHUB_USER }}/nginx-party:${{ github.ref_name }}

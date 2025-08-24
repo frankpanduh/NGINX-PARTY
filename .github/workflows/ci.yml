@@ -1,63 +1,78 @@
-name: 🛠️ Build NGINX-PARTY Stable + Creative Mods
+name: 🛠️ Build NGINX-PARTY (Stable + QUIC + Mods)
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+env:
+  NGINX_VERSION: 1.29.1
+  OPENSSL_VERSION: 3.3.1
+  ENABLE_MODSEC: true
+  MODSEC_MODE: DetectionOnly
+
 jobs:
   build:
-    name: 🚀 Build NGINX + Mods + Lua + Redis
     runs-on: ubuntu-latest
-    env:
-      NGINX_VERSION: 1.29.1
-      OPENSSL_VERSION: 3.3.1
-      ENABLE_MODSEC: true
-      MODSEC_MODE: DetectionOnly
-      LUAJIT_VERSION: 2.1-20230606
-
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 📂 Cache Build
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.ccache
-            nginx-${{ env.NGINX_VERSION }}-src
-          key: nginx-build-${{ env.NGINX_VERSION }}-${{ runner.os }}
-
-      - name: 🌐 Clone NGINX Source
+      - name: 🌐 Clone NGINX & Modules
         run: |
-          git clone --depth=1 --branch release-${NGINX_VERSION} https://github.com/nginx/nginx.git nginx-${NGINX_VERSION}-src
+          git clone --depth 1 https://github.com/nginx/nginx.git -b release-$NGINX_VERSION nginx-$NGINX_VERSION-src
+          git clone --depth 1 https://github.com/google/ngx_brotli.git
+          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
+          git clone --depth 1 https://github.com/jaeles-project/ngx-fancyindex.git
+          if [ "$ENABLE_MODSEC" == "true" ]; then
+            git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
+          fi
 
-      - name: 📥 Fetch LuaJIT for Redis/Lua Modules
+      - name: 🔒 Build OpenSSL
         run: |
-          git clone --depth=1 https://github.com/openresty/luajit2.git luajit-${LUAJIT_VERSION}
+          wget https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz
+          tar -xzf openssl-$OPENSSL_VERSION.tar.gz
 
-      - name: 🔧 Configure & Build
+      - name: 🔧 Configure & Build NGINX
         run: |
-          cd nginx-${NGINX_VERSION}-src
+          cd nginx-$NGINX_VERSION-src
           ./auto/configure \
             --with-compat \
             --with-http_ssl_module \
-            --with-http_v2_module \
             --with-http_v3_module \
             --with-stream \
             --with-stream_ssl_module \
             --with-threads \
             --with-http_gzip_static_module \
+            --with-http_v2_module \
             --with-http_image_filter_module \
-            --with-http_auth_request_module \
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
-            --add-module=../lua-nginx-module \
-            --with-cc-opt='-O2 -g -fstack-protector-strong -D_FORTIFY_SOURCE=2 -I../luajit-${LUAJIT_VERSION}/src' \
-            --with-ld-opt='-Wl,-z,relro,-z,now -L../luajit-${LUAJIT_VERSION}/src' \
             $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" )
           make -j$(nproc)
           sudo make install
           cd ..
-          echo "✅ NGINX + Mods + Lua + Redis Build Complete!"
+          echo "🚀 NGINX + Mods Build Complete!"
+
+      - name: 📦 Package .deb
+        run: |
+          cd nginx-$NGINX_VERSION-src
+          DEB_NAME="nginx-party_${NGINX_VERSION}_openssl-${OPENSSL_VERSION}_$(dpkg --print-architecture).deb"
+          sudo checkinstall --pkgname=nginx-party \
+                            --pkgversion=$NGINX_VERSION \
+                            --arch=$(dpkg --print-architecture) \
+                            --backup=no \
+                            --deldoc=yes \
+                            --fstrans=no \
+                            --default \
+                            --maintainer="NGINX-PARTY Team" \
+                            --pkglicense="BSD-2-Clause" \
+                            --pkggroup="web" \
+                            --requires="libpcre3, zlib1g, openssl" \
+                            --provides="nginx-party" \
+                            --nodoc \
+                            --install=no \
+                            --pkgsource="https://github.com/YOURUSER/NGINX-PARTY" \
+                            --pkgdesc="NGINX-PARTY $NGINX_VERSION (OpenSSL $OPENSSL_VERSION) - Hardened with Brotli, Cache Purge, FancyIndex"
+          mv ../nginx-party_*_amd64.deb ../$DEB_NAME
