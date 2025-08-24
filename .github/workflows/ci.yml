@@ -1,22 +1,23 @@
-name: 🛠️ PANDUH-PARTY CI (Stable NGINX + QUIC + Mods) 🌐🚀
+name: 🛠️ NGINX-PARTY CI (Stable + QUIC + Mods) 🌐✨
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
 
 env:
-  ENABLE_MODSEC: true
-  MODSEC_MODE: DetectionOnly
   NGINX_VERSION: 1.29.1
   OPENSSL_VERSION: 3.3.1
+  ENABLE_MODSEC: true
+  MODSEC_MODE: DetectionOnly
 
 jobs:
   build-nginx-modsec:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 📥 Checkout repository
+      - name: ⚡ Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -28,41 +29,49 @@ jobs:
             build-essential autoconf automake libtool pkg-config \
             libpcre3 libpcre3-dev libxml2 libxml2-dev libcurl4-openssl-dev \
             libyajl-dev liblmdb-dev lua5.3 liblua5.3-dev libgeoip-dev \
-            git wget unzip zlib1g-dev ccache rustc cargo
+            git wget unzip zlib1g-dev ccache
           sudo rm -rf /var/lib/apt/lists/*
+
+      - name: 💾 Cache NGINX source
+        uses: actions/cache@v4
+        with:
+          path: nginx-${{ env.NGINX_VERSION }}.tar.gz
+          key: nginx-${{ env.NGINX_VERSION }}
+
+      - name: 💾 Cache ModSecurity
+        uses: actions/cache@v4
+        with:
+          path: ModSecurity
+          key: modsecurity-${{ hashFiles('**/ci.yml') }}
+
+      - name: 🌐 Fetch & Extract NGINX Source
+        run: |
+          wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx-${NGINX_VERSION}.tar.gz
+          tar -xzf nginx-${NGINX_VERSION}.tar.gz
+          mv nginx-${NGINX_VERSION} nginx-${NGINX_VERSION}-src
+          if [ ! -f "nginx-${NGINX_VERSION}-src/auto/configure" ]; then
+            echo "❌ nginx/auto/configure missing!"
+            exit 1
+          fi
+          echo "✅ NGINX source ready"
 
       - name: 🐼 Clone ModSecurity
         run: |
           git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
           cd ModSecurity
-          git submodule init
-          git submodule update --recursive
+          git submodule update --init --recursive
           autoreconf -fi
           ./configure
           make -j$(nproc)
           sudo make install
           cd ..
-          echo "✅ ModSecurity installed!"
-
-      - name: 🌐 Download & extract NGINX source
-        run: |
-          echo "Fetching NGINX ${NGINX_VERSION} source..."
-          wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx-${NGINX_VERSION}.tar.gz
-          tar -xzf nginx-${NGINX_VERSION}.tar.gz
-          if [ ! -d "nginx-${NGINX_VERSION}" ]; then
-            echo "❌ Extraction failed: nginx-${NGINX_VERSION} not found!"
-            exit 1
-          fi
-          mv nginx-${NGINX_VERSION} nginx-${NGINX_VERSION}-src
-          echo "✅ NGINX source ready at nginx-${NGINX_VERSION}-src"
+          echo "✅ ModSecurity installed"
 
       - name: 🔧 Configure & Build NGINX with modules
         run: |
+          export CC="ccache gcc"
+          export CXX="ccache g++"
           cd nginx-${NGINX_VERSION}-src
-          if [ ! -f "./auto/configure" ]; then
-            echo "❌ nginx/auto/configure missing!"
-            exit 1
-          fi
           ./auto/configure \
             --with-compat \
             --with-http_ssl_module \

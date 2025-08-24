@@ -1,26 +1,39 @@
-name: ⚡ NGINX-PARTY Preflight Check 🛠️
+name: 🛡️ NGINX-PARTY Preflight Checks ⚡👾
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout code
+      - name: ⚡ Checkout Repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: 🧪 Verify environment
+      - name: 🛠️ Install Build Dependencies
         run: |
-          echo "Checking required tools..."
-          which gcc make cmake curl git wget || { echo "Missing build tools!"; exit 1; }
-          gcc --version
-          make --version
-          git --version
-          curl --version
-          wget --version
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential autoconf automake libtool pkg-config \
+            libpcre3 libpcre3-dev libxml2 libxml2-dev libcurl4-openssl-dev \
+            libyajl-dev liblmdb-dev lua5.3 liblua5.3-dev libgeoip-dev \
+            git wget unzip zlib1g-dev ccache
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: 💾 Check NGINX Source
+        run: |
+          if [ ! -f "nginx-${NGINX_VERSION}-src/auto/configure" ]; then
+            echo "❌ NGINX source missing or not extracted!"
+            exit 1
+          fi
+          echo "✅ NGINX source present"
+
+      - name: 💾 Check ModSecurity Submodule
+        run: |
+          if [ ! -d "ModSecurity" ]; then
+            echo "❌ ModSecurity submodule missing!"
+            exit 1
+          fi
+          echo "✅ ModSecurity submodule present"

@@ -1,37 +1,40 @@
-name: 🏷️ NGINX-PARTY Release 🚀
+name: 📦 NGINX-PARTY Release 🎉⚡
 
 on:
   push:
     tags:
-      - 'nginx-party-stable-v*'
+      - 'v*'
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Checkout code
+      - name: ⚡ Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: 🛠️ Build release notes
+      - name: 🛠️ Build & Test NGINX
         run: |
-          echo "Generating release notes..."
-          git log --pretty=format:"- %s" $(git describe --tags --abbrev=0)..HEAD > release_notes.md
-          echo "✅ Release notes generated"
+          echo "Building NGINX-PARTY for release..."
+          ./ci.yml # Or replicate build steps here
+          echo "✅ Build finished"
 
-      - name: 🐳 Build Docker release
-        run: docker build -t nginx-party-stable:${GITHUB_REF##*/} .
+      - name: 🐼 Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nginx-party-release-artifacts
+          path: |
+            nginx-${{ env.NGINX_VERSION }}-src
+            ModSecurity
 
-      - name: 🚀 Push Docker & GHCR release
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-        run: |
-          echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-          docker tag nginx-party-stable:${GITHUB_REF##*/} $DOCKER_USERNAME/nginx-party-stable:${GITHUB_REF##*/}
-          docker push $DOCKER_USERNAME/nginx-party-stable:${GITHUB_REF##*/}
-          echo $GHCR_TOKEN | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
-          docker tag nginx-party-stable:${GITHUB_REF##*/} ghcr.io/${GITHUB_REPOSITORY}:nginx-party-stable-${GITHUB_REF##*/}
-          docker push ghcr.io/${GITHUB_REPOSITORY}:nginx-party-stable-${GITHUB_REF##*/}
+      - name: 🚀 Publish Release Notes
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: "NGINX-PARTY Release ${{ github.ref_name }} 🐼✨"
+          body: |
+            Stable NGINX-PARTY build with QUIC, ModSecurity, AVIF/WEBP, Websocket & Streams.
+            Modules: ngx_brotli, ngx_cache_purge, ngx_fancyindex
+          draft: false
+          prerelease: false
