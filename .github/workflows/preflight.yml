@@ -2,12 +2,10 @@ name: 💻 Preflight Checks & Dependencies
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 jobs:
   preflight:
-    name: ⚡ Preflight - NGINX & ModSecurity
+    name: ⚡ Soft Preflight - NGINX & ModSecurity
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
@@ -31,10 +29,8 @@ jobs:
           php -v
           redis-server --version
 
-      - name: 🔍 Soft Preflight Checks
+      - name: 🛡️ Check ModSecurity
         run: |
-          set -e
-          # Check ModSecurity
           if [ "$ENABLE_MODSEC" = "true" ]; then
             if [ ! -d "./ModSecurity" ]; then
               echo "❌ ModSecurity repo missing"
@@ -47,12 +43,14 @@ jobs:
             cd ..
           fi
 
-          # Check Brotli
+      - name: 🌀 Check Brotli
+        run: |
           if [ ! -d "./ngx_brotli/deps/brotli" ]; then
             echo "❌ Brotli submodule missing or not initialized"
             exit 1
           fi
 
-          echo "✅ Soft preflight completed"
-        env:
-          ENABLE_MODSEC: true
+      - name: ✅ Soft Preflight Complete
+        run: echo "✅ Soft preflight completed"
+    env:
+      ENABLE_MODSEC: true

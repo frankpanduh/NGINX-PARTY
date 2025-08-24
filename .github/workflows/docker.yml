@@ -1,9 +1,7 @@
-name: 🐳 Docker Build NGINX-PARTY
+name: 🐳 Docker NGINX-PARTY
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 jobs:
   docker:
@@ -14,10 +12,10 @@ jobs:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 📦 Build & Push Docker Image
+      - name: 📦 Build Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/NGINX-PARTY:stable
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/NGINX-PARTY:stable
+          tags: ${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
