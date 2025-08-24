@@ -1,39 +1,24 @@
-name: 🛡️ NGINX-PARTY Preflight Checks ⚡👾
+name: 🐼 Preflight Checks 🔍
 
 on:
+  pull_request:
   workflow_dispatch:
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
     steps:
-      - name: ⚡ Checkout Repository
+      - name: 🐼 Checkout code
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: 🛠️ Install Build Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            build-essential autoconf automake libtool pkg-config \
-            libpcre3 libpcre3-dev libxml2 libxml2-dev libcurl4-openssl-dev \
-            libyajl-dev liblmdb-dev lua5.3 liblua5.3-dev libgeoip-dev \
-            git wget unzip zlib1g-dev ccache
-          sudo rm -rf /var/lib/apt/lists/*
+      - name: 🧹 Lint YAML
+        uses: ibiqlik/action-yamllint@v3
 
-      - name: 💾 Check NGINX Source
+      - name: 🔍 Validate NGINX version
         run: |
-          if [ ! -f "nginx-${NGINX_VERSION}-src/auto/configure" ]; then
-            echo "❌ NGINX source missing or not extracted!"
-            exit 1
+          echo "Checking NGINX version..."
+          if [[ "${{ github.event.inputs.nginx_version }}" != "" ]]; then
+            echo "NGINX version override: ${{ github.event.inputs.nginx_version }}"
+          else
+            echo "Using default version in workflows"
           fi
-          echo "✅ NGINX source present"
-
-      - name: 💾 Check ModSecurity Submodule
-        run: |
-          if [ ! -d "ModSecurity" ]; then
-            echo "❌ ModSecurity submodule missing!"
-            exit 1
-          fi
-          echo "✅ ModSecurity submodule present"

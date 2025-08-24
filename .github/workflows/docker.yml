@@ -1,40 +1,33 @@
-name: 🐳 NGINX-PARTY Docker Build & Push ⚡🛠️
+name: 🐼 Docker Build & Push 🐋
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
-  workflow_dispatch:
+
+env:
+  NGINX_VERSION: 1.29.1
 
 jobs:
-  docker-build:
+  docker:
     runs-on: ubuntu-latest
     steps:
-      - name: ⚡ Checkout repo
+      - name: 🐼 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐼 Build Docker Image
-        run: |
-          docker build -t nginx-party-stable:latest .
-      
-      - name: 🚀 Login to GHCR
-        uses: docker/login-action@v2
+      - name: 🗄️ Restore ccache
+        uses: actions/cache@v4
         with:
-          registry: ghcr.io
-          username: ${{ secrets.GHCR_USERNAME }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          path: ~/.ccache
+          key: docker-${{ env.NGINX_VERSION }}-${{ github.sha }}
 
-      - name: 🏷️ Push GHCR Image
+      - name: 🐋 Build Docker Image
         run: |
-          docker tag nginx-party-stable:latest ghcr.io/${{ secrets.GHCR_USERNAME }}/nginx-party-stable:latest
-          docker push ghcr.io/${{ secrets.GHCR_USERNAME }}/nginx-party-stable:latest
+          docker build \
+            --build-arg NGINX_VERSION=${NGINX_VERSION} \
+            -t ghcr.io/${{ github.repository }}/nginx-party:${{ github.sha }} .
 
-      - name: 🚀 Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: 🏷️ Push Docker Hub Image
+      - name: 📤 Push Docker Image
         run: |
-          docker tag nginx-party-stable:latest ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party-stable:latest
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/nginx-party-stable:latest
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker push ghcr.io/${{ github.repository }}/nginx-party:${{ github.sha }}
