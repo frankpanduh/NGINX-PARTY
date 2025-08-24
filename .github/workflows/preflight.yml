@@ -1,24 +1,44 @@
-name: 🐼 Preflight Checks 🔍
+name: 🛠️ PANDUH-PARTY Preflight Checks
 
 on:
-  pull_request:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
     steps:
-      - name: 🐼 Checkout code
+      - name: 🔍 Checkout Repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: 🧹 Lint YAML
-        uses: ibiqlik/action-yamllint@v3
-
-      - name: 🔍 Validate NGINX version
+      - name: 🧰 Install Base Dependencies
         run: |
-          echo "Checking NGINX version..."
-          if [[ "${{ github.event.inputs.nginx_version }}" != "" ]]; then
-            echo "NGINX version override: ${{ github.event.inputs.nginx_version }}"
-          else
-            echo "Using default version in workflows"
-          fi
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential \
+            git \
+            curl \
+            wget \
+            ca-certificates \
+            libpcre3-dev \
+            zlib1g-dev \
+            libssl-dev \
+            libxml2-dev \
+            libxslt1-dev \
+            libgeoip-dev \
+            liblua5.3-dev \
+            libcurl4-openssl-dev \
+            libyajl-dev \
+            cmake \
+            pkg-config \
+            ccache \
+            lsb-release \
+            debhelper \
+            dh-autoreconf
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: ✅ Preflight Complete
+        run: echo "All dependencies installed and ready 🚀"

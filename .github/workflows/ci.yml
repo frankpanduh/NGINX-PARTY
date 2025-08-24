@@ -1,12 +1,12 @@
-name: 🛠️ Build NGINX-PARTY (Stable + QUIC + Mods) 🌐💾
+name: 🛠️ PANDUH-PARTY CI (Stable + QUIC + Mods)
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
 
 env:
-  NGINX_VERSION: 1.29.1
+  NGINX_VERSION: release-1.29.1
   OPENSSL_VERSION: 3.3.1
   ENABLE_MODSEC: true
   MODSEC_MODE: DetectionOnly
@@ -15,49 +15,30 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 🐼 Checkout repository
+      - name: 🔄 Checkout Repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: 🗄️ Cache sources & ccache
+      - name: 💾 Cache ccache
         uses: actions/cache@v4
         with:
-          path: |
-            nginx-${{ env.NGINX_VERSION }}.tar.gz
-            ModSecurity
-            ~/.ccache
-          key: ci-${{ env.NGINX_VERSION }}-${{ hashFiles('**/ci.yml') }}
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ env.NGINX_VERSION }}
 
-      - name: 🔧 Install dependencies
+      - name: 🌐 Clone NGINX Source
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            build-essential libpcre3 libpcre3-dev zlib1g-dev libssl-dev \
-            libgeoip-dev libxml2-dev libyajl-dev libcurl4-openssl-dev lua5.3 liblua5.3-dev \
-            libpcre2-dev git wget ccache
-          sudo rm -rf /var/lib/apt/lists/*
-
-      - name: 🌐 Download & extract NGINX Source
-        run: |
-          wget https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx-${NGINX_VERSION}.tar.gz
-          FILESIZE=$(stat -c%s "nginx-${NGINX_VERSION}.tar.gz")
-          if [ "$FILESIZE" -lt 5000000 ]; then
-            echo "❌ File too small — aborting"
-            exit 1
-          fi
-          tar -xzf nginx-${NGINX_VERSION}.tar.gz
-          mv nginx-${NGINX_VERSION} nginx-${NGINX_VERSION}-src
-          if [ ! -f "nginx-${NGINX_VERSION}-src/auto/configure" ]; then
+          echo "Fetching NGINX ${NGINX_VERSION} source..."
+          git clone --branch ${NGINX_VERSION} --depth 1 https://github.com/nginx/nginx.git nginx-${NGINX_VERSION}-src
+          cd nginx-${NGINX_VERSION}-src
+          if [ ! -f "./auto/configure" ]; then
             echo "❌ nginx/auto/configure missing!"
             exit 1
           fi
+          cd ..
 
-      - name: 🔨 Configure & Build with ccache
+      - name: 📦 Build NGINX + Modules
         run: |
-          export CC="ccache gcc"
-          export CXX="ccache g++"
-          export PATH="/usr/lib/ccache:$PATH"
           cd nginx-${NGINX_VERSION}-src
           ./auto/configure \
             --with-compat \
@@ -78,4 +59,11 @@ jobs:
           make -j$(nproc)
           sudo make install
           cd ..
-          echo "🚀 Build complete with caching"
+          echo "🚀 NGINX + ModSecurity build complete — panda style!"
+
+      - name: 📦 Build DEB Package
+        run: |
+          cd nginx-${NGINX_VERSION}-src
+          sudo checkinstall --pkgname=nginx-party --pkgversion=1.29.1 --backup=no --deldoc=yes --fstrans=no --default
+          cd ..
+          echo "✅ DEB package ready!"

@@ -1,37 +1,33 @@
-name: 🐼 Release Build & Upload 📦
+name: 🎉 PANDUH-PARTY Release
 
 on:
   push:
     tags:
-      - "v*.*.*"
-
-env:
-  NGINX_VERSION: 1.29.1
-  OPENSSL_VERSION: 3.3.1
+      - 'v*'
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: 🐼 Checkout code
+      - name: 🔄 Checkout Repository
         uses: actions/checkout@v4
-
-      - name: 🗄️ Restore ccache
-        uses: actions/cache@v4
         with:
-          path: ~/.ccache
-          key: release-${{ env.NGINX_VERSION }}-${{ github.ref_name }}
+          submodules: recursive
 
-      - name: 🔧 Build Release Binary
-        run: |
-          export CC="ccache gcc"
-          export CXX="ccache g++"
-          export PATH="/usr/lib/ccache:$PATH"
-          echo "Building release version..."
-          # (Insert same configure/make steps from ci.yml here)
+      - name: 📝 Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "nginx-party-stable-${{ github.ref_name }} 🚀"
+          body: |
+            Release ${{ github.ref_name }} ready.
+            Includes NGINX 1.29.1 + QUIC + ModSecurity + Brotli + Cache modules.
 
-      - name: 📦 Upload Release Artifact
+      - name: 📦 Upload DEB Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nginx-release
-          path: /usr/local/nginx/sbin/nginx
+          name: nginx-party-deb
+          path: nginx-*.deb
+
+      - name: 🐳 Push Docker Images
+        uses: ./.github/workflows/docker.yml
