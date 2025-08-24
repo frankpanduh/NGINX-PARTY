@@ -1,0 +1,66 @@
+name: 🛠️ Preflight Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 🐧 Update & Install Dependencies
+        run: |
+          echo "🔄 Updating package list..."
+          sudo apt-get update -qq
+          echo "✅ Installing build essentials & dev libraries..."
+          sudo apt-get install -y \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            cmake \
+            gcc \
+            g++ \
+            make \
+            libpcre3-dev \
+            zlib1g-dev \
+            libssl-dev \
+            python3-dev \
+            swig \
+            libxml2-dev \
+            libxslt1-dev \
+            libbrotli-dev \
+            libzstd-dev \
+            git \
+            curl \
+            wget
+          echo "📦 Dependencies installed!"
+
+      - name: 🗂️ Ensure Placeholder Directories
+        run: |
+          echo "🔨 Creating example directories if missing..."
+          mkdir -p ./example/
+          mkdir -p ./ngx_brotli/deps/brotli
+          mkdir -p ./ModSecurity/test/test-cases/secrules-language-tests
+          echo "✅ Placeholder directories ready!"
+
+      - name: 🔗 Submodules Status
+        run: |
+          echo "🔄 Initializing and updating submodules..."
+          git submodule init
+          git submodule update --recursive
+          echo "📌 Submodules are up to date!"
+
+      - name: 📝 Check Build Tools
+        run: |
+          echo "🔍 Verifying key build tools..."
+          which gcc || echo "⚠️ gcc missing!"
+          which make || echo "⚠️ make missing!"
+          cmake --version || echo "⚠️ cmake missing!"
+          pkg-config --version || echo "⚠️ pkg-config missing!"
+          echo "✅ All required tools checked!"
