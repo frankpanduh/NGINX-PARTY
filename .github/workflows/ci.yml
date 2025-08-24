@@ -1,14 +1,15 @@
-name: 🚀 NGINX-PARTY CI Build 🐼
+name: 🐼 Cyberpunk Panda CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
   pull_request:
+    branches: [ "main" ]
 
 jobs:
-  build:
+  build-nginx-modsec:
     runs-on: ubuntu-latest
+
     env:
       ENABLE_MODSEC: true
       MODSEC_MODE: DetectionOnly
@@ -16,31 +17,38 @@ jobs:
       OPENSSL_VERSION: 3.3.1
 
     steps:
-      - name: 🐼 Checkout repo
+      - name: ⚡ Checkout repo
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: 🛠 Install build tools & dependencies
+      - name: 🛠️ Install dependencies
         run: |
-          echo "Installing build essentials and optional libraries..."
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential cmake autoconf automake libtool pkg-config git curl wget \
-            rustc cargo python3 python3-pip \
-            libpcre3 libpcre3-dev zlib1g zlib1g-dev libssl-dev \
-            libbrotli-dev libwebp-dev libavif-dev \
-            libcurl4-openssl-dev libyajl-dev liblmdb-dev \
-            libgeoip-dev libmaxminddb-dev libxml2-dev \
-            liblua5.4-dev libfuzzy-dev || echo "⚠️ Some optional packages could not be installed. Continuing..."
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            libpcre3 libpcre3-dev \
+            libxml2 libxml2-dev \
+            libcurl4-openssl-dev \
+            libyajl-dev \
+            liblmdb-dev \
+            lua5.3 liblua5.3-dev \
+            libgeoip-dev \
+            git wget unzip zlib1g-dev
 
-      - name: 📦 ModSecurity Submodules 🛡️
-        if: env.ENABLE_MODSEC == 'true'
+      - name: 🐼 Clone ModSecurity
         run: |
-          echo "Initializing ModSecurity submodules..."
+          echo "Cloning SpiderLabs/ModSecurity..."
+          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
           cd ModSecurity
           git submodule init
           git submodule update --recursive
+
+      - name: 🔨 Build ModSecurity
+        run: |
+          cd ModSecurity
           echo "Preparing build scripts..."
           autoreconf -fi
           ./configure
@@ -49,47 +57,15 @@ jobs:
           cd ..
           echo "✅ ModSecurity ninja-panda installed!"
 
-      - name: 🔧 Build NGINX
+      - name: 🌐 Download NGINX
         run: |
-          echo "🔧 Building NGINX with media powers, QUIC, SSL, caching, stream, and threads..."
-          mkdir -p nginx
+          wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx.tar.gz
+          mkdir nginx && tar -xzf nginx.tar.gz -C nginx --strip-components=1
+
+      - name: 🔧 Build NGINX with ModSecurity
+        run: |
           cd nginx
-          ./auto/configure \
-            --with-http_ssl_module \
-            --with-http_v3_module \
-            --with-stream \
-            --with-stream_ssl_module \
-            --with-threads \
-            --with-http_gzip_static_module \
-            --with-http_v2_module \
-            --add-module=../ngx_brotli \
-            --add-module=../ngx_cache_purge \
-            --add-module=../ngx-fancyindex
+          ./configure --with-compat --add-module=../ModSecurity/nginx/modsecurity
           make -j$(nproc)
           sudo make install
-          cd ..
-          echo "🐼 NGINX built and installed — panda speed unlocked!"
-
-      - name: 🖼️ Test Media Modules
-        run: |
-          echo "Testing WebP / AVIF support..."
-          # optional: insert quick runtime checks here
-
-      - name: 🎁 Save Modular Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: nginx-artifacts
-          path: |
-            nginx
-            ngx_brotli
-            ngx_cache_purge
-            ngx-fancyindex
-
-      - name: 🔍 Debug Info (if build fails)
-        if: failure()
-        run: |
-          echo "💀 Build failed! Dumping recent sys info for debugging:"
-          uname -a
-          df -h
-          free -m
-          ldd /usr/local/nginx/sbin/nginx || echo "⚠️ NGINX binary missing"
+          echo "🚀 NGINX + ModSecurity cyberpunk build complete!"
