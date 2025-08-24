@@ -84,4 +84,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: nginx-party-deb
-          path: ./deb/nginx-party*.deb
+          path: ./deb/nginx-party*.deb 
