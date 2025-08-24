@@ -44,11 +44,6 @@ jobs:
       - name: Clone third-party modules 🧩
         run: |
           git clone --depth 1 https://github.com/google/ngx_brotli.git
-          cd ngx_brotli/deps/brotli
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON .
-          make
-          sudo make install
-          cd ../../../
           git clone --depth 1 https://github.com/tokers/zstd-nginx-module.git
           git clone --depth 1 https://github.com/leev/ngx_http_geoip2_module.git
           git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git
