@@ -1,11 +1,13 @@
 name: 💻 Preflight Checks & Dependencies
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   preflight:
-    name: ⚡ Soft Preflight - NGINX & ModSecurity
+    name: ⚡ Preflight - NGINX-PARTY
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
@@ -19,7 +21,7 @@ jobs:
             libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libtool automake \
             libyajl-dev liblmdb-dev libluajit-5.1-dev \
             php8.3-cli php8.3-fpm mariadb-client composer redis-server \
-            ccache unzip tar cmake
+            nodejs npm ccache unzip tar cmake
           sudo rm -rf /var/lib/apt/lists/*
 
       - name: 🔧 Confirm Build Tools
@@ -28,29 +30,4 @@ jobs:
           make --version
           php -v
           redis-server --version
-
-      - name: 🛡️ Check ModSecurity
-        run: |
-          if [ "$ENABLE_MODSEC" = "true" ]; then
-            if [ ! -d "./ModSecurity" ]; then
-              echo "❌ ModSecurity repo missing"
-              exit 1
-            fi
-            cd ModSecurity
-            git submodule update --init --recursive
-            ./autogen.sh
-            ./configure
-            cd ..
-          fi
-
-      - name: 🌀 Check Brotli
-        run: |
-          if [ ! -d "./ngx_brotli/deps/brotli" ]; then
-            echo "❌ Brotli submodule missing or not initialized"
-            exit 1
-          fi
-
-      - name: ✅ Soft Preflight Complete
-        run: echo "✅ Soft preflight completed"
-    env:
-      ENABLE_MODSEC: true
+          node -v
