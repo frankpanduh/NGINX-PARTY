@@ -1,11 +1,13 @@
-name: 🚀 Release NGINX-PARTY
+name: 🌐 Release NGINX-PARTY
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
   release:
-    name: 🚀 Release NGINX-PARTY
+    name: ⚡ Release DEB Artifacts
     runs-on: ubuntu-latest
     needs: build
     steps:
