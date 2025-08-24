@@ -1,0 +1,80 @@
+# ==========================
+# macOS system files
+# ==========================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.DocumentRevisions-V100
+.fseventsd
+
+# ==========================
+# Windows system files
+# ==========================
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+ehthumbs.db
+Icon?
+*.lnk
+
+# ==========================
+# Linux / Ubuntu system files
+# ==========================
+*~        # backup files
+.nfs*     # NFS temp files
+
+# ==========================
+# Editor / IDE
+# ==========================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*.code-workspace
+
+# ==========================
+# Node / NPM
+# ==========================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ==========================
+# Python
+# ==========================
+__pycache__/
+*.pyc
+*.pyo
+
+# ==========================
+# Logs
+# ==========================
+*.log
+
+# ==========================
+# Docker / build artifacts
+# ==========================
+*.env
+*.key
+*.pem
+*.crt
+*.pid
+*.sock
+dist/
+build/
+*.deb
+*.tar.gz
+*.zip
+
+# ==========================
+# Secrets / configs (never commit)
+# ==========================
+.env
+*.key
+*.pem
+*.crt
