@@ -1,48 +1,46 @@
-name: Build & Push Docker Images 🐳
+name: 🐼 NGINX-PARTY Docker Build & Push
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  pull_request:
 
 jobs:
-  docker-build:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo 📥
-        uses: actions/checkout@v3
+      - name: ⚡ Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Download CI-built .deb artifact 📦
-        uses: actions/download-artifact@v4
-        with:
-          name: nginx-party-deb
-          path: ./deb
+      - name: 📦 Build Docker image
+        run: |
+          echo "Building Docker image for NGINX-PARTY..."
+          docker build -t nginx-party:latest .
 
-      - name: Login to Docker Hub 🐳
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Login to GHCR ⚡
+      - name: 🚀 Push to GHCR
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          docker tag nginx-party:latest ghcr.io/${{ github.repository }}/nginx-party:latest
+          docker push ghcr.io/${{ github.repository }}/nginx-party:latest
+          echo "✅ Pushed to GHCR!"
 
-      - name: Build Docker image 🔨
-        run: |
-          cp ./deb/nginx-party*.deb ./Dockerfile-root/
-          docker build \
-            --build-arg ENABLE_MODSEC=true \
-            --build-arg MODSEC_MODE=DetectionOnly \
-            -t nginx-party:latest ./Dockerfile-root
-          docker tag nginx-party:latest ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest
-          docker tag nginx-party:latest ghcr.io/${{ github.repository_owner }}/nginx-party:latest
-
-      - name: Push Docker images 🚀
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest
-          docker push ghcr.io/${{ github.repository_owner }}/nginx-party:latest
+      - name: 🚀 Push to Docker Hub
+        if: secrets.DOCKER_USERNAME && secrets.DOCKER_PASSWORD
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - run: |
+          if [[ -n "${{ secrets.DOCKER_USERNAME }}" ]]; then
+            docker tag nginx-party:latest ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest
+            docker push ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest
+            echo "✅ Pushed to Docker Hub!"
+          else
+            echo "⚠️ Docker Hub credentials not found; skipping push."
+          fi

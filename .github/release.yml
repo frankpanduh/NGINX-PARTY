@@ -1,42 +1,33 @@
-name: Publish Release ✨
+name: 🐼 NGINX-PARTY Release Automation
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Build NGINX-PARTY .deb 🚀"]
-    types:
-      - completed
+  release:
+    types: [published]
 
 jobs:
   release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo 📥
-        uses: actions/checkout@v3
+      - name: ⚡ Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Download .deb artifact 📦
+      - name: 🎁 Download CI artifacts
         uses: actions/download-artifact@v4
         with:
-          name: nginx-party-deb
-          path: ./release
+          name: nginx-artifacts
+          path: release/
 
-      - name: Create GitHub Release 🎉
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload .deb to Release 🚀
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ./release/*.deb
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Release summary 📝
+      - name: 🐼 Prepare release package
         run: |
-          echo "🎉 NGINX-PARTY Release published!"
-          echo "- .deb artifact attached 📦"
-          echo "- Docker images pushed to Docker Hub 🐳 & GHCR 🌟"
+          echo "Preparing NGINX-PARTY release tarball..."
+          tar -czf nginx-party-release.tar.gz -C release .
+
+      - name: 📦 Upload release to GitHub
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: nginx-party-release.tar.gz
+          asset_name: nginx-party-release.tar.gz
+          asset_content_type: application/gzip
