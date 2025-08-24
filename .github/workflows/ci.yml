@@ -1,10 +1,10 @@
-name: 🛠️ NGINX-PARTY CI (Stable + QUIC + Mods) 🌐✨
+name: 🛠️ NGINX-PARTY CI (Stable + QUIC + Mods + Flair)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ main ]
+    branches: [ "main" ]
 
 env:
   NGINX_VERSION: 1.29.1
@@ -13,47 +13,30 @@ env:
   MODSEC_MODE: DetectionOnly
 
 jobs:
-  build-nginx-modsec:
+  build-nginx:
     runs-on: ubuntu-latest
 
     steps:
-      - name: ⚡ Checkout repository
+      - name: ⚡ Checkout Repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: 🛠️ Install dependencies
+      - name: 🏎️ Cache APT Packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('**/ci.yml') }}
+
+      - name: 🛠️ Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
+          sudo apt-get install -y --no-install-recommends \
             build-essential autoconf automake libtool pkg-config \
             libpcre3 libpcre3-dev libxml2 libxml2-dev libcurl4-openssl-dev \
-            libyajl-dev liblmdb-dev lua5.3 liblua5.3-dev libgeoip-dev \
-            git wget unzip zlib1g-dev ccache
+            libyajl-dev libgeoip-dev lua5.3 liblua5.3-dev git wget unzip \
+            zlib1g-dev libmbedtls-dev libssl-dev ccache
           sudo rm -rf /var/lib/apt/lists/*
-
-      - name: 💾 Cache NGINX source
-        uses: actions/cache@v4
-        with:
-          path: nginx-${{ env.NGINX_VERSION }}.tar.gz
-          key: nginx-${{ env.NGINX_VERSION }}
-
-      - name: 💾 Cache ModSecurity
-        uses: actions/cache@v4
-        with:
-          path: ModSecurity
-          key: modsecurity-${{ hashFiles('**/ci.yml') }}
-
-      - name: 🌐 Fetch & Extract NGINX Source
-        run: |
-          wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx-${NGINX_VERSION}.tar.gz
-          tar -xzf nginx-${NGINX_VERSION}.tar.gz
-          mv nginx-${NGINX_VERSION} nginx-${NGINX_VERSION}-src
-          if [ ! -f "nginx-${NGINX_VERSION}-src/auto/configure" ]; then
-            echo "❌ nginx/auto/configure missing!"
-            exit 1
-          fi
-          echo "✅ NGINX source ready"
 
       - name: 🐼 Clone ModSecurity
         run: |
@@ -65,13 +48,28 @@ jobs:
           make -j$(nproc)
           sudo make install
           cd ..
-          echo "✅ ModSecurity installed"
+          echo "✅ ModSecurity installed!"
 
-      - name: 🔧 Configure & Build NGINX with modules
+      - name: 🌐 Download & Extract NGINX
         run: |
-          export CC="ccache gcc"
-          export CXX="ccache g++"
+          echo "Fetching NGINX ${NGINX_VERSION} source..."
+          wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx-${NGINX_VERSION}.tar.gz
+          tar -xzf nginx-${NGINX_VERSION}.tar.gz
+          if [ ! -d "nginx-${NGINX_VERSION}" ]; then
+            echo "❌ Extraction failed: nginx-${NGINX_VERSION} not found"
+            exit 1
+          fi
+          mv nginx-${NGINX_VERSION} nginx-${NGINX_VERSION}-src
+          if [ ! -f "nginx-${NGINX_VERSION}-src/auto/configure" ]; then
+            echo "❌ nginx/auto/configure missing!"
+            exit 1
+          fi
+          echo "✅ NGINX source ready"
+
+      - name: 🔧 Configure & Build NGINX with Modules
+        run: |
           cd nginx-${NGINX_VERSION}-src
+          ccache -M 5G
           ./auto/configure \
             --with-compat \
             --with-http_ssl_module \
@@ -84,6 +82,9 @@ jobs:
             --with-http_image_filter_module \
             --with-http_websocket_module \
             --with-http_videostream_module \
+            --with-http_realip_module \
+            --with-http_slice_module \
+            --with-openssl-opt="enable-tls1_3 enable-ktls enable-ec_nistp_64_gcc_128" \
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
@@ -91,4 +92,4 @@ jobs:
           make -j$(nproc)
           sudo make install
           cd ..
-          echo "🚀 NGINX + ModSecurity build complete — panda style!"
+          echo "🚀 NGINX + ModSecurity + QUIC build complete — panda style!"
