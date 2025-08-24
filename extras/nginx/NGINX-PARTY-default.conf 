@@ -1,0 +1,77 @@
+##########################################################
+# ⚡ NGINX-PARTY DEFAULT CONFIGURATION ⚡
+# This is a safe starter config for indie users!
+# Includes SSL/TLS, HTTP/2, media types, ModSecurity starter pack,
+# speed enhancements, and optional streaming.
+# --------------------------------------------------------
+# - Read extras/nginx/readme.md for more info on snippets
+# - Adjust server_name and root for your CMS
+# - Use this as a base for WordPress, Drupal, Ghost, or DIY streams
+##########################################################
+
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+    worker_connections 1024;
+    multi_accept on;
+    use epoll;
+}
+
+http {
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    # Logging
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    # SSL / TLS defaults
+    include extras/nginx/ssl.conf;
+
+    # Compression & caching
+    include extras/speed/gzip-avif-webp.conf;
+    include extras/speed/cache.conf;
+
+    # HTTP/2 / HTTP/3 tuning
+    include extras/nginx/http2.conf;
+
+    # Media types
+    include extras/nginx/media-types.conf;
+
+    # ModSecurity starter pack
+    include extras/modsec/starter-pack.conf;
+
+    # CMS virtual hosts example
+    server {
+        listen 80;
+        listen [::]:80;
+        server_name example.com;
+        root /var/www/html;
+
+        index index.php index.html index.htm;
+
+        include extras/nginx/websocket.conf;  # Optional WebSocket / streaming
+
+        location / {
+            try_files $uri $uri/ /index.php?$args;
+        }
+
+        # PHP-FPM example
+        location ~ \.php$ {
+            include snippets/fastcgi-php.conf;
+            fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+        }
+    }
+
+    # Optional livestreaming server
+    include extras/streaming/livestream.conf;
+}
