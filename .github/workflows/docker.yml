@@ -1,18 +1,21 @@
-name: 🐳 Docker Build
+name: 🐳 Docker Build & Push
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  docker:
+    name: 🐳 Docker Build & Push
     runs-on: ubuntu-latest
+    needs: build
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 📦 Build Docker Image
+      - name: 📦 Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/nginx-party:stable

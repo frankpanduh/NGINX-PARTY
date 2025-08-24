@@ -1,16 +1,17 @@
-name: 💻 Preflight Checks
+name: 💻 Preflight Checks & Dependencies
 
 on:
   workflow_dispatch:
 
 jobs:
   preflight:
+    name: 💻 Preflight - Dependencies
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 💻 Install Dependencies
+      - name: 🐧 Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
@@ -18,14 +19,36 @@ jobs:
             libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libtool automake \
             libyajl-dev liblmdb-dev libluajit-5.1-dev \
             php8.3-cli php8.3-fpm mariadb-client composer redis-server \
-            ccache unzip tar
+            ccache unzip tar cmake
           sudo rm -rf /var/lib/apt/lists/*
 
-      - name: 🛡️ Verify Modules
+      - name: 🔧 Confirm Build Tools
         run: |
-          echo "Checking for required modules..."
-          [[ -d ./ngx_brotli ]] || echo "❌ ngx_brotli missing"
-          [[ -d ./ngx_cache_purge ]] || echo "❌ ngx_cache_purge missing"
-          [[ -d ./ngx-fancyindex ]] || echo "❌ ngx-fancyindex missing"
-          [[ -d ./ModSecurity/nginx ]] || echo "❌ ModSecurity/nginx missing"
-          echo "✅ Preflight done"
+          gcc --version
+          make --version
+          php -v
+          redis-server --version
+
+      - name: 🐼 Soft Preflight - ModSecurity & Brotli
+        run: |
+          set -e
+          # Check ModSecurity
+          if [ "$ENABLE_MODSEC" = "true" ]; then
+            if [ ! -d "./ModSecurity" ]; then
+              echo "❌ ModSecurity folder missing, cloning..."
+              git clone --depth 1 https://github.com/SpiderLabs/ModSecurity
+            fi
+            cd ModSecurity
+            git submodule update --init --recursive
+            ./autogen.sh
+            ./configure
+            cd ..
+          fi
+          # Check Brotli
+          if [ ! -f "./ngx_brotli/deps/brotli/CMakeLists.txt" ]; then
+            echo "❌ Brotli submodule missing or not initialized"
+            exit 1
+          fi
+          echo "✅ Soft preflight completed"
+        env:
+          ENABLE_MODSEC: true
