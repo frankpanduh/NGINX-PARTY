@@ -8,9 +8,16 @@ on:
 jobs:
   docker-build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository 📥
+      - name: Checkout repo 📥
         uses: actions/checkout@v3
+
+      - name: Download CI-built .deb artifact 📦
+        uses: actions/download-artifact@v4
+        with:
+          name: nginx-party-deb
+          path: ./deb
 
       - name: Login to Docker Hub 🐳
         uses: docker/login-action@v2
@@ -27,7 +34,8 @@ jobs:
 
       - name: Build Docker image 🔨
         run: |
-          docker build -t nginx-party:latest .
+          cp ./deb/nginx-party*.deb ./Dockerfile-root/
+          docker build -t nginx-party:latest ./Dockerfile-root
           docker tag nginx-party:latest ${{ secrets.DOCKER_USERNAME }}/nginx-party:latest
           docker tag nginx-party:latest ghcr.io/${{ github.repository_owner }}/nginx-party:latest
 

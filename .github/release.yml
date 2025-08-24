@@ -2,14 +2,15 @@ name: Publish Release ✨
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - 'v*'
+  workflow_run:
+    workflows: ["Build NGINX-PARTY .deb 🚀"]
+    types:
+      - completed
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    needs: build-deb
+
     steps:
       - name: Checkout repo 📥
         uses: actions/checkout@v3
@@ -34,13 +35,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Auto-build notes 📝
+      - name: Release summary 📝
         run: |
           echo "🎉 NGINX-PARTY Release published!"
           echo "- .deb artifact attached 📦"
           echo "- Docker images pushed to Docker Hub 🐳 & GHCR 🌟"
-          echo "- Contributors: update secrets if you fork 🔑"
-          echo "- Pull Docker images:"
-          echo "  Docker Hub: docker pull \$DOCKER_USERNAME/nginx-party:latest"
-          echo "  GHCR: docker pull ghcr.io/\$GITHUB_REPOSITORY_OWNER/nginx-party:latest"
-          echo "🐛 If something broke, check CI logs carefully!"
