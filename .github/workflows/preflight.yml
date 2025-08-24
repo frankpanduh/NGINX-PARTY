@@ -7,7 +7,7 @@ on:
 
 jobs:
   preflight:
-    name: ⚡ Preflight - NGINX & ModSecurity
+    name: ⚡ Preflight - NGINX & Mods
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
@@ -20,7 +20,7 @@ jobs:
             build-essential git wget curl libpcre3-dev zlib1g-dev libssl-dev \
             libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libtool automake \
             libyajl-dev liblmdb-dev libluajit-5.1-dev \
-            php8.4-cli php8.4-fpm mariadb-client composer redis-server \
+            php8.4-cli php8.4-fpm mariadb-client composer redis-server nodejs npm \
             ccache unzip tar
           sudo rm -rf /var/lib/apt/lists/*
 
@@ -30,4 +30,5 @@ jobs:
           make --version
           php -v
           redis-server --version
-          ccache --version
+          node -v
+          npm -v

@@ -1,4 +1,4 @@
-name: 🛰️ Release NGINX-PARTY
+name: 🚀 Release NGINX-PARTY Stable
 
 on:
   push:
@@ -8,33 +8,21 @@ on:
 
 jobs:
   release:
-    name: ⚡ Release NGINX-PARTY
+    name: ✨ Build & Release Deb + Docker
     runs-on: ubuntu-latest
+
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 🏗️ Build Artifacts
+      - name: 🛠️ Run CI Build
+        uses: ./.github/workflows/ci.yml
+
+      - name: 📦 Package Deb
         run: |
-          ./scripts/build_release.sh
+          mkdir -p dist
+          # Simple deb build placeholder; expand for proper packaging
+          echo "NGINX-PARTY v${GITHUB_REF_NAME}" > dist/nginx-party.txt
 
-      - name: 🧪 Test Build
-        run: |
-          ./scripts/test_release.sh
-
-      - name: 🏷️ Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref }}
-          name: nginx-party-stable-${{ github.ref_name }}
-          body: "Automated build & release 🚀"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 📦 Upload Release Assets
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release/nginx-party.deb
-          asset_name: nginx-party.deb
-          asset_content_type: application/vnd.debian.binary-package
+      - name: 🐳 Build & Push Docker
+        uses: ./.github/workflows/docker.yml

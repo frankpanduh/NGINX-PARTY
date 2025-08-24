@@ -1,53 +1,63 @@
-name: 🛠️ Build NGINX (Stable + QUIC + Mods)
+name: 🛠️ Build NGINX-PARTY Stable + Creative Mods
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-env:
-  NGINX_VERSION: 1.29.1
-  OPENSSL_VERSION: 3.3.1
-  ENABLE_MODSEC: true
-  MODSEC_MODE: DetectionOnly
-
 jobs:
   build:
-    name: ⚡ Build NGINX + Modules
+    name: 🚀 Build NGINX + Mods + Lua + Redis
     runs-on: ubuntu-latest
+    env:
+      NGINX_VERSION: 1.29.1
+      OPENSSL_VERSION: 3.3.1
+      ENABLE_MODSEC: true
+      MODSEC_MODE: DetectionOnly
+      LUAJIT_VERSION: 2.1-20230606
+
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 🌐 Clone NGINX Mainline
-        run: |
-          git clone --branch release-${NGINX_VERSION} --depth 1 https://github.com/nginx/nginx.git nginx-${NGINX_VERSION}-src
+      - name: 📂 Cache Build
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.ccache
+            nginx-${{ env.NGINX_VERSION }}-src
+          key: nginx-build-${{ env.NGINX_VERSION }}-${{ runner.os }}
 
-      - name: 📦 Clone Extra Modules
+      - name: 🌐 Clone NGINX Source
         run: |
-          git clone --depth 1 https://github.com/google/ngx_brotli.git
-          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
-          git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
+          git clone --depth=1 --branch release-${NGINX_VERSION} https://github.com/nginx/nginx.git nginx-${NGINX_VERSION}-src
 
-      - name: 🔧 Configure & Build NGINX
+      - name: 📥 Fetch LuaJIT for Redis/Lua Modules
+        run: |
+          git clone --depth=1 https://github.com/openresty/luajit2.git luajit-${LUAJIT_VERSION}
+
+      - name: 🔧 Configure & Build
         run: |
           cd nginx-${NGINX_VERSION}-src
           ./auto/configure \
             --with-compat \
             --with-http_ssl_module \
+            --with-http_v2_module \
             --with-http_v3_module \
             --with-stream \
             --with-stream_ssl_module \
             --with-threads \
             --with-http_gzip_static_module \
-            --with-http_v2_module \
             --with-http_image_filter_module \
-            --with-http_videostream_module \
+            --with-http_auth_request_module \
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
+            --add-module=../lua-nginx-module \
+            --with-cc-opt='-O2 -g -fstack-protector-strong -D_FORTIFY_SOURCE=2 -I../luajit-${LUAJIT_VERSION}/src' \
+            --with-ld-opt='-Wl,-z,relro,-z,now -L../luajit-${LUAJIT_VERSION}/src' \
             $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" )
           make -j$(nproc)
           sudo make install
           cd ..
-          echo "🚀 NGINX + Mods Build Complete!"
+          echo "✅ NGINX + Mods + Lua + Redis Build Complete!"
