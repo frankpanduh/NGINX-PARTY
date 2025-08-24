@@ -1,67 +1,43 @@
-name: 🛠️ Build NGINX-PARTY Stable + QUIC + Mods
+name: 🛠️ CI Build NGINX-PARTY
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-env:
-  NGINX_VERSION: 1.29.1
-  OPENSSL_VERSION: 3.3.1
-  ENABLE_MODSEC: true
-  MODSEC_MODE: DetectionOnly
-
 jobs:
-  preflight:
-    name: 💻 Preflight - Dependencies
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📥 Checkout Repo
-        uses: actions/checkout@v4
-
-      - name: 🐧 Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            build-essential git wget curl libpcre3-dev zlib1g-dev libssl-dev \
-            libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libtool automake \
-            libyajl-dev liblmdb-dev libluajit-5.1-dev \
-            php8.3-cli php8.3-fpm mariadb-client composer redis-server \
-            ccache unzip tar fakeroot devscripts dh-make
-          sudo rm -rf /var/lib/apt/lists/*
-
-      - name: 🔧 Confirm Build Tools
-        run: |
-          gcc --version
-          make --version
-          php -v
-          redis-server --version
-
   build:
-    name: 🚀 Build NGINX-PARTY
+    name: 🔨 Build NGINX-PARTY
     runs-on: ubuntu-latest
-    needs: preflight
+    env:
+      NGINX_VERSION: 1.29.1
+      OPENSSL_VERSION: 3.3.1
+      ENABLE_MODSEC: true
+      MODSEC_MODE: DetectionOnly
+
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
+
+      - name: ⏳ Restore Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.ccache
+            ~/.cache/nginx-party
+          key: ${{ runner.os }}-nginx-${{ env.NGINX_VERSION }}
 
       - name: 🌐 Clone NGINX & Modules
         run: |
-          git clone --depth 1 https://github.com/nginx/nginx.git -b release-$NGINX_VERSION nginx-$NGINX_VERSION-src
+          git clone --depth 1 https://github.com/nginx/nginx.git -b release-${NGINX_VERSION} nginx-${NGINX_VERSION}-src
           git clone --depth 1 https://github.com/google/ngx_brotli.git
-          git clone --depth 1 https://github.com/FRiCKLE/ngx_cache_purge.git
+          git -C ngx_brotli submodule update --init --recursive
+          git clone --depth 1 https://github.com/FRANKPanduh/ngx_cache_purge.git
           git clone --depth 1 https://github.com/aperezdc/ngx-fancyindex.git
-          if [ "$ENABLE_MODSEC" == "true" ]; then
-            git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git
-          fi
 
-      - name: 🔒 Configure & Build NGINX
+      - name: 🔧 Configure & Build NGINX
         run: |
-          cd nginx-$NGINX_VERSION-src
-          if [ ! -f "./auto/configure" ]; then
-            echo "❌ nginx/auto/configure missing!"
-            exit 1
-          fi
+          cd nginx-${NGINX_VERSION}-src
           ./auto/configure \
             --with-compat \
             --with-http_ssl_module \
@@ -75,43 +51,16 @@ jobs:
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
             --add-module=../ngx-fancyindex \
-            $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" ) \
-            --with-http_stub_status_module \
-            --with-file-aio \
-            --with-cc-opt="-O2 -g -fstack-protector-strong" \
-            --with-ld-opt="-Wl,-z,relro,-z,now"
+            $( [ "$ENABLE_MODSEC" == "true" ] && echo "--add-module=../ModSecurity/nginx/modsecurity" )
           make -j$(nproc)
           sudo make install
           cd ..
-          echo "🚀 NGINX + Mods Build Complete!"
+          echo "🚀 NGINX-PARTY build complete!"
 
-      - name: 📦 Create DEB Package
+      - name: 📦 Package DEB
         run: |
-          cd nginx-$NGINX_VERSION-src
-          sudo checkinstall --install=no --pkgname=nginx-party --pkgversion=$NGINX_VERSION --backup=no --deldoc=yes --fstrans=no --default
-          mv *.deb ../
+          mkdir -p deb/nginx-party
+          cp -r /usr/local/* deb/nginx-party/
+          cd deb
+          tar czf nginx-party_${NGINX_VERSION}.tar.gz nginx-party
           cd ..
-          echo "📦 DEB Package Ready!"
-
-  release:
-    name: 🛰️ Release NGINX-PARTY
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: 📥 Checkout Repo
-        uses: actions/checkout@v4
-
-      - name: 📤 Upload Release Artifacts
-        uses: softprops/action-gh-release@v1
-        with:
-          files: '*.deb'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 📦 Push Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/nginx-party:stable
