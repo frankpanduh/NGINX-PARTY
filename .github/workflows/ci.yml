@@ -44,6 +44,9 @@ jobs:
       - name: Clone third-party modules 🧩
         run: |
           git clone --depth 1 https://github.com/google/ngx_brotli.git
+          cd ngx_brotli
+          git submodule update --init --recursive   # <-- fixes Brotli dependency
+          cd ..
           git clone --depth 1 https://github.com/tokers/zstd-nginx-module.git
           git clone --depth 1 https://github.com/leev/ngx_http_geoip2_module.git
           git clone --depth 1 https://github.com/openresty/headers-more-nginx-module.git
