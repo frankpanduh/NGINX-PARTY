@@ -1,9 +1,10 @@
-name: PANDUH-PARTY Release 🎁🛠️🚀
+name: NGINX-PARTY Release Automation 🐼🚀⚡
 
 on:
+  workflow_dispatch:
   push:
     tags:
-      - "v*"
+      - "nginx-party-stable-v*"
 
 jobs:
   release:
@@ -12,16 +13,31 @@ jobs:
     steps:
       - name: ⚡ Checkout repo
         uses: actions/checkout@v4
-
-      - name: 📦 Upload DEB Artifact
-        uses: actions/upload-artifact@v4
         with:
-          name: nginx-panduh-party
-          path: ./nginx-panduh-party_${{ env.NGINX_VERSION }}-1_amd64.deb
+          submodules: recursive
 
-      - name: 🏷️ Create GitHub Release
-        uses: ncipollo/release-action@v1
+      - name: 📦 Create release notes
+        run: |
+          echo "Release: $GITHUB_REF_NAME" > release_notes.txt
+          echo "NGINX-PARTY stable build with QUIC + Mods" >> release_notes.txt
+
+      - name: 🔐 Login Docker & GHCR
+        uses: docker/login-action@v2
         with:
-          tag: ${{ github.ref_name }}
-          name: "PANDUH-PARTY ${{ github.ref_name }}"
-          artifacts: nginx-panduh-party_${{ env.NGINX_VERSION }}-1_amd64.deb
+          username: ${{ secrets.DOCKER_HUB_USER }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: 🐳 Build & push Docker images
+        run: |
+          docker build -t nginx-party:$GITHUB_REF_NAME .
+          docker tag nginx-party:$GITHUB_REF_NAME docker.io/${{ secrets.DOCKER_HUB_USER }}/nginx-party:$GITHUB_REF_NAME
+          docker push docker.io/${{ secrets.DOCKER_HUB_USER }}/nginx-party:$GITHUB_REF_NAME
+          docker tag nginx-party:$GITHUB_REF_NAME ghcr.io/${{ github.repository_owner }}/nginx-party:$GITHUB_REF_NAME
+          docker push ghcr.io/${{ github.repository_owner }}/nginx-party:$GITHUB_REF_NAME
+
+      - name: 📝 Create GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "NGINX-PARTY ${{ github.ref_name }}"
+          body_path: release_notes.txt

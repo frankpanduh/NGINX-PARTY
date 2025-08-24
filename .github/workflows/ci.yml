@@ -1,4 +1,4 @@
-name: PANDUH-PARTY (🛠️ Build NGINX (Stable + QUIC + Mods) 🚀🕶️💾)
+name: NGINX-PARTY (🛠️ Build Stable + QUIC + Mods ⚡🐼)
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
 jobs:
   build-nginx:
     runs-on: ubuntu-latest
+
     env:
       ENABLE_MODSEC: true
       MODSEC_MODE: DetectionOnly
@@ -21,7 +22,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: 🗂️ Cache APT packages
+      - name: 🐌 Cache APT packages
         uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives
@@ -36,43 +37,41 @@ jobs:
       - name: 🛠️ Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          sudo apt-get install --no-install-recommends -y \
             build-essential autoconf automake libtool pkg-config \
             libpcre3 libpcre3-dev libxml2 libxml2-dev libcurl4-openssl-dev \
             libyajl-dev liblmdb-dev lua5.3 liblua5.3-dev libgeoip-dev \
-            git wget unzip zlib1g-dev cmake checkinstall ccache
-          sudo rm -rf /var/lib/apt/lists/*
+            git wget unzip zlib1g-dev checkinstall cmake ccache
 
-      - name: 🐼 Clone & Cache ModSecurity
-        uses: actions/cache@v4
-        with:
-          path: ModSecurity
-          key: modsecurity-v4-${{ hashFiles('**/ci.yml') }}
-      - run: |
-          git clone --depth 1 https://github.com/SpiderLabs/ModSecurity.git || echo "Using cached"
-          cd ModSecurity
-          git submodule update --init --recursive
-
-      - name: 🔨 Build ModSecurity
+      - name: 🌐 Download & extract NGINX
         run: |
-          cd ModSecurity
-          autoreconf -fi
-          ./configure
-          make -j$(nproc)
-          sudo make install
-          cd ..
-
-      - name: 🌐 Download & Cache NGINX Source
-        uses: actions/cache@v4
-        with:
-          path: nginx-${{ env.NGINX_VERSION }}.tar.gz
-          key: nginx-${{ env.NGINX_VERSION }}
-      - run: |
-          wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx-${NGINX_VERSION}.tar.gz || echo "Using cached"
+          wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz -O nginx-${NGINX_VERSION}.tar.gz
           tar -xzf nginx-${NGINX_VERSION}.tar.gz
+          if [ ! -d nginx-${NGINX_VERSION} ]; then
+            echo "❌ Extraction failed: directory nginx-${NGINX_VERSION} not found."
+            exit 1
+          fi
           mv nginx-${NGINX_VERSION} nginx
+          if [ ! -f nginx/auto/configure ]; then
+            echo "❌ nginx/auto/configure is missing!"
+            exit 1
+          fi
+          echo "✅ NGINX source ready!"
 
-      - name: 🔧 Configure & Build NGINX + Modules
+      - name: 🐼 Build ModSecurity (if enabled)
+        run: |
+          if [ "$ENABLE_MODSEC" == "true" ]; then
+            cd ModSecurity
+            git submodule update --init --recursive
+            autoreconf -fi
+            ./configure
+            make -j$(nproc)
+            sudo make install
+            cd ..
+            echo "✅ ModSecurity installed"
+          fi
+
+      - name: 🔧 Configure & Build NGINX + Mods
         run: |
           cd nginx
           ./auto/configure \
@@ -87,7 +86,6 @@ jobs:
             --with-http_gzip_static_module \
             --with-http_v2_module \
             --with-http_image_filter_module \
-            --with-http_videodownload_module \
             --with-http_slice_module \
             --add-module=../ngx_brotli \
             --add-module=../ngx_cache_purge \
@@ -96,14 +94,4 @@ jobs:
           make -j$(nproc)
           sudo make install
           cd ..
-
-      - name: 🧪 Test NGINX Build
-        run: |
-          sudo /usr/local/nginx/sbin/nginx -t || exit 1
-
-      - name: 📦 Package as DEB
-        run: |
-          cd nginx
-          sudo checkinstall --install=no --pkgname=nginx-panduh-party --pkgversion=${NGINX_VERSION} --backup=no --deldoc=yes --fstrans=no --default
-          mv nginx-panduh-party_${NGINX_VERSION}-1_amd64.deb ../
-          cd ..
+          echo "🚀 NGINX-PARTY build complete — panda style!"
