@@ -1,52 +1,48 @@
-name: 💻 Preflight Checks & Dependencies
+name: 💻 Preflight NGINX-PARTY
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+  pull_request:
 
 jobs:
   preflight:
-    name: ⚡ Preflight - NGINX & ModSecurity
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Repo
         uses: actions/checkout@v4
 
-      - name: 🐧 Install Dependencies
+      - name: ⚙️ Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            build-essential git wget curl libpcre3-dev zlib1g-dev libssl-dev \
-            libxml2-dev libxslt1-dev libgd-dev libgeoip-dev libtool automake \
-            libyajl-dev liblmdb-dev libluajit-5.1-dev \
-            php8.3-cli php8.3-fpm mariadb-client composer redis-server \
-            ccache unzip tar cmake
-          sudo rm -rf /var/lib/apt/lists/*
-
-      - name: 🔧 Confirm Build Tools
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            cmake \
+            automake \
+            autoconf \
+            libtool \
+            pkg-config \
+            libpcre3-dev \
+            libxml2-dev \
+            libyajl-dev \
+            liblmdb-dev \
+            libssl-dev \
+            libgeoip-dev \
+            libcurl4-openssl-dev \
+            doxygen \
+            wget \
+            zlib1g-dev \
+            php8.3-cli \
+            php8.3-fpm \
+            mariadb-client \
+            composer \
+            redis-server \
+            ccache \
+            unzip \
+            tar
+      - name: ✅ Verify Toolchain
         run: |
           gcc --version
-          make --version
+          cmake --version
           php -v
           redis-server --version
-
-      - name: ⚡ Check ModSecurity Repo
-        run: |
-          if [ "$ENABLE_MODSEC" = "true" ]; then
-            if [ ! -d "./ModSecurity" ]; then
-              echo "❌ ModSecurity repo missing"
-              exit 1
-            fi
-            git -C ModSecurity submodule update --init --recursive
-          fi
-
-      - name: ⚡ Check Brotli Repo
-        run: |
-          if [ ! -d "./ngx_brotli/deps/brotli" ]; then
-            echo "❌ Brotli submodule missing or not initialized"
-            exit 1
-          fi
-
-    env:
-      ENABLE_MODSEC: true
